@@ -242,7 +242,18 @@ export async function getLikedYou(userId: string): Promise<EngagementProfile[]> 
   const db = getPrismaClient();
   if (!db) return [];
   const likes = await db.interaction.findMany({
-    where: { toId: userId, type: "LIKE" },
+    where: {
+      toId: userId,
+      type: "LIKE",
+      from: {
+        role: "MEMBER",
+        status: "ACTIVE",
+        NOT: [
+          { blocksMade: { some: { blockedId: userId } } },
+          { blocksReceived: { some: { blockerId: userId } } },
+        ],
+      },
+    },
     include: { from: { include: { profile: true, photos: { orderBy: [{ isPrimary: "desc" }, { position: "asc" }], take: 1 } } } },
     orderBy: { createdAt: "desc" },
     take: 40,
@@ -262,7 +273,18 @@ export async function getFavourites(userId: string): Promise<EngagementProfile[]
   const db = getPrismaClient();
   if (!db) return [];
   const favourites = await db.interaction.findMany({
-    where: { fromId: userId, type: "FAVOURITE" },
+    where: {
+      fromId: userId,
+      type: "FAVOURITE",
+      to: {
+        role: "MEMBER",
+        status: "ACTIVE",
+        NOT: [
+          { blocksMade: { some: { blockedId: userId } } },
+          { blocksReceived: { some: { blockerId: userId } } },
+        ],
+      },
+    },
     include: { to: { include: { profile: true, photos: { orderBy: [{ isPrimary: "desc" }, { position: "asc" }], take: 1 } } } },
     orderBy: { createdAt: "desc" },
     take: 40,
@@ -282,7 +304,17 @@ export async function getVisitors(userId: string): Promise<EngagementProfile[]> 
   const db = getPrismaClient();
   if (!db) return [];
   const visits = await db.profileVisit.findMany({
-    where: { profileId: userId },
+    where: {
+      profileId: userId,
+      visitor: {
+        role: "MEMBER",
+        status: "ACTIVE",
+        NOT: [
+          { blocksMade: { some: { blockedId: userId } } },
+          { blocksReceived: { some: { blockerId: userId } } },
+        ],
+      },
+    },
     include: { visitor: { include: { profile: true, photos: { orderBy: [{ isPrimary: "desc" }, { position: "asc" }], take: 1 } } } },
     orderBy: { createdAt: "desc" },
     take: 40,

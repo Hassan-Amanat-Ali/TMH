@@ -1,4 +1,4 @@
-import { getPrismaClient } from "@/lib/server/prisma";
+import { getPrismaClient, prisma } from "@/lib/server/prisma";
 import { Prisma, type Gender, type InteractionType, type MembershipLevel, type ProfileTier } from "@/lib/prisma/client";
 
 export type DiscoveryAd = {
@@ -35,14 +35,32 @@ export type DiscoveryProfile = {
   hasReel: boolean;
   likes: number;
   matchPercent: number;
+  rankingScore: number;
   likedByViewer: boolean;
   favouritedByViewer: boolean;
+};
+
+export type LocationOption = {
+  id: string;
+  name: string;
+  countryCode: string;
+  type: string;
+  parentId: string | null;
+};
+
+export type SavedSearchSummary = {
+  id: string;
+  name: string;
+  filters: DiscoveryFilters;
+  createdAt: string;
 };
 
 export type DiscoveryData = {
   profiles: DiscoveryProfile[];
   gridAds: DiscoveryAd[];
   swipeAds: DiscoveryAd[];
+  locations: LocationOption[];
+  savedSearches: SavedSearchSummary[];
 };
 
 export type DiscoveryFilters = {
@@ -50,9 +68,12 @@ export type DiscoveryFilters = {
   minAge?: number;
   maxAge?: number;
   countryCode?: string;
+  locationNodeId?: string;
   onlineOnly?: boolean;
   verifiedOnly?: boolean;
   newOnly?: boolean;
+  hasReelOnly?: boolean;
+  sort?: "best" | "popular" | "recent";
 };
 
 const discoveryUserInclude = {
@@ -113,6 +134,7 @@ export const fallbackProfiles: DiscoveryProfile[] = [
     hasReel: true,
     likes: 148,
     matchPercent: 94,
+    rankingScore: 94,
     likedByViewer: false,
     favouritedByViewer: false,
   },
@@ -145,6 +167,7 @@ export const fallbackProfiles: DiscoveryProfile[] = [
     hasReel: false,
     likes: 92,
     matchPercent: 88,
+    rankingScore: 88,
     likedByViewer: false,
     favouritedByViewer: false,
   },
@@ -177,6 +200,7 @@ export const fallbackProfiles: DiscoveryProfile[] = [
     hasReel: true,
     likes: 176,
     matchPercent: 91,
+    rankingScore: 91,
     likedByViewer: false,
     favouritedByViewer: false,
   },
@@ -209,6 +233,7 @@ export const fallbackProfiles: DiscoveryProfile[] = [
     hasReel: false,
     likes: 64,
     matchPercent: 83,
+    rankingScore: 83,
     likedByViewer: false,
     favouritedByViewer: false,
   },
@@ -241,6 +266,7 @@ export const fallbackProfiles: DiscoveryProfile[] = [
     hasReel: false,
     likes: 119,
     matchPercent: 86,
+    rankingScore: 86,
     likedByViewer: false,
     favouritedByViewer: false,
   },
@@ -273,6 +299,7 @@ export const fallbackProfiles: DiscoveryProfile[] = [
     hasReel: true,
     likes: 133,
     matchPercent: 89,
+    rankingScore: 89,
     likedByViewer: false,
     favouritedByViewer: false,
   },
@@ -308,6 +335,26 @@ function estimateMatch(profile: {
   return Math.max(62, Math.min(98, score));
 }
 
+function estimateRankingScore(user: DiscoveryUserRecord, verified: boolean, online: boolean, viewerCountryCode?: string | null) {
+  const profile = user.profile;
+  const hasPhoto = user.photos.length > 0;
+  const hasReel = user.reels.length > 0;
+  const completion = profile?.completion || 0;
+  const lastActiveMinutes = user.lastActiveAt ? Math.max(0, (Date.now() - user.lastActiveAt.getTime()) / 60000) : 100000;
+  const recency = Math.max(0, 18 - Math.min(18, Math.round(lastActiveMinutes / 60)));
+  let score = 25;
+  if (profile?.countryCode && viewerCountryCode && profile.countryCode === viewerCountryCode) score += 12;
+  if (online) score += 8;
+  score += recency;
+  score += Math.min(16, Math.round(completion / 6));
+  if (hasPhoto) score += 10;
+  if (hasReel) score += 8;
+  if (verified) score += 8;
+  if (user.membership === "VIP") score += 10;
+  score += Math.min(12, user.interactionsTo.length);
+  return Math.max(1, Math.min(100, score));
+}
+
 function buildDiscoveryWhere(viewerId?: string | null, filters: DiscoveryFilters = {}): Prisma.UserWhereInput {
   const profileWhere: Prisma.ProfileWhereInput = {};
   const not: Prisma.UserWhereInput[] = [];
@@ -323,6 +370,9 @@ function buildDiscoveryWhere(viewerId?: string | null, filters: DiscoveryFilters
   }
   if (filters.countryCode) {
     profileWhere.countryCode = filters.countryCode;
+  }
+  if (filters.locationNodeId) {
+    profileWhere.locationNodeId = filters.locationNodeId;
   }
   if (filters.onlineOnly) {
     profileWhere.stealthMode = false;
@@ -342,6 +392,7 @@ function buildDiscoveryWhere(viewerId?: string | null, filters: DiscoveryFilters
     ...(filters.onlineOnly ? { lastActiveAt: { gte: new Date(Date.now() - 1000 * 60 * 15) } } : {}),
     ...(filters.verifiedOnly ? { verifications: { some: { status: "APPROVED", type: { in: ["PHOTO", "ID"] } } } } : {}),
     ...(filters.newOnly ? { createdAt: { gte: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14) } } : {}),
+    ...(filters.hasReelOnly ? { reels: { some: { status: "ACTIVE", moderation: "APPROVED", expiresAt: { gt: new Date() } } } } : {}),
     ...(not.length ? { NOT: not } : {}),
     profile: { is: profileWhere },
   };
@@ -351,7 +402,8 @@ function mapUserToDiscoveryProfile(
   user: DiscoveryUserRecord,
   index: number,
   liked: Set<string>,
-  favourites: Set<string>
+  favourites: Set<string>,
+  viewerCountryCode?: string | null
 ): DiscoveryProfile | null {
   if (!user.profile) return null;
 
@@ -368,6 +420,7 @@ function mapUserToDiscoveryProfile(
     online,
     countryCode: profile.countryCode,
   });
+  const rankingScore = estimateRankingScore(user, verified, online, viewerCountryCode);
 
   return {
     id: user.id,
@@ -395,6 +448,7 @@ function mapUserToDiscoveryProfile(
     hasReel: user.reels.length > 0,
     likes: user.interactionsTo.length,
     matchPercent,
+    rankingScore,
     likedByViewer: liked.has(user.id),
     favouritedByViewer: favourites.has(user.id),
   };
@@ -406,6 +460,7 @@ function filterFallbackProfiles(filters: DiscoveryFilters = {}) {
     if (filters.minAge && profile.age < filters.minAge) return false;
     if (filters.maxAge && profile.age > filters.maxAge) return false;
     if (filters.countryCode && profile.countryCode !== filters.countryCode) return false;
+    if (filters.hasReelOnly && !profile.hasReel) return false;
     if (filters.onlineOnly && !profile.online) return false;
     if (filters.verifiedOnly && !profile.verified) return false;
     if (filters.newOnly && !profile.newHere) return false;
@@ -422,40 +477,113 @@ async function getViewerInteractions(viewerId?: string | null) {
   });
 }
 
+function parseSavedFilters(value: string): DiscoveryFilters {
+  try {
+    const parsed = JSON.parse(value) as DiscoveryFilters;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function getViewerCountryCode(viewerId?: string | null) {
+  const db = getPrismaClient();
+  if (!viewerId || !db) return null;
+  const viewer = await db.profile.findUnique({ where: { userId: viewerId }, select: { countryCode: true } });
+  return viewer?.countryCode || null;
+}
+
+export async function getLocationOptions(): Promise<LocationOption[]> {
+  const db = getPrismaClient();
+  if (!db) return [];
+  const nodes = await db.locationNode.findMany({
+    orderBy: [{ countryCode: "asc" }, { type: "asc" }, { name: "asc" }],
+    take: 300,
+  });
+  return nodes.map((node) => ({
+    id: node.id,
+    name: node.name,
+    countryCode: node.countryCode,
+    type: node.type,
+    parentId: node.parentId,
+  }));
+}
+
+export async function listSavedSearches(userId: string): Promise<SavedSearchSummary[]> {
+  const db = getPrismaClient();
+  if (!db) return [];
+  const searches = await db.savedSearch.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: 20 });
+  return searches.map((search) => ({
+    id: search.id,
+    name: search.name,
+    filters: parseSavedFilters(search.filters),
+    createdAt: search.createdAt.toISOString(),
+  }));
+}
+
+export async function createSavedSearch(userId: string, name: string, filters: DiscoveryFilters) {
+  const cleanedName = name.trim().slice(0, 80) || "Saved search";
+  return prisma.savedSearch.create({
+    data: {
+      userId,
+      name: cleanedName,
+      filters: JSON.stringify(filters),
+    },
+  });
+}
+
+export async function deleteSavedSearch(userId: string, id: string) {
+  const result = await prisma.savedSearch.deleteMany({ where: { id, userId } });
+  if (result.count !== 1) throw new Error("Saved search not found.");
+}
+
 export async function getDiscoveryData(viewerId?: string | null, filters: DiscoveryFilters = {}): Promise<DiscoveryData> {
   const db = getPrismaClient();
   if (!db) {
-    return { profiles: filterFallbackProfiles(filters), gridAds: fallbackAds, swipeAds: fallbackAds };
+    return { profiles: filterFallbackProfiles(filters), gridAds: fallbackAds, swipeAds: fallbackAds, locations: [], savedSearches: [] };
   }
 
   try {
-    const [users, interactions, gridAds, swipeAds] = await Promise.all([
+    const [users, interactions, gridAds, swipeAds, locations, savedSearches, viewerCountryCode] = await Promise.all([
       db.user.findMany({
         where: buildDiscoveryWhere(viewerId, filters),
         include: discoveryUserInclude,
-        orderBy: [{ membership: "desc" }, { lastActiveAt: "desc" }, { createdAt: "desc" }],
-        take: 24,
+        orderBy: [{ lastActiveAt: "desc" }, { createdAt: "desc" }],
+        take: 80,
       }),
       getViewerInteractions(viewerId),
       db.ad.findMany({ where: { active: true, placement: "GRID_CARD" }, orderBy: { weight: "desc" }, take: 4 }),
       db.ad.findMany({ where: { active: true, placement: "SWIPE_INTERSTITIAL" }, orderBy: { weight: "desc" }, take: 4 }),
+      getLocationOptions(),
+      viewerId ? listSavedSearches(viewerId) : Promise.resolve([]),
+      getViewerCountryCode(viewerId),
     ]);
 
     if (!users.length) {
-      return { profiles: filterFallbackProfiles(filters), gridAds: gridAds.length ? gridAds : fallbackAds, swipeAds: swipeAds.length ? swipeAds : fallbackAds };
+      return { profiles: filterFallbackProfiles(filters), gridAds: gridAds.length ? gridAds : fallbackAds, swipeAds: swipeAds.length ? swipeAds : fallbackAds, locations, savedSearches };
     }
 
     const liked = new Set(interactions.filter((item) => item.type === "LIKE").map((item) => item.toId));
     const favourites = new Set(interactions.filter((item) => item.type === "FAVOURITE").map((item) => item.toId));
-    const profiles = users.map((user, index) => mapUserToDiscoveryProfile(user, index, liked, favourites)).filter((profile): profile is DiscoveryProfile => profile !== null);
+    const profiles = users
+      .map((user, index) => mapUserToDiscoveryProfile(user, index, liked, favourites, viewerCountryCode))
+      .filter((profile): profile is DiscoveryProfile => profile !== null)
+      .sort((a, b) => {
+        if (filters.sort === "popular") return b.likes - a.likes || b.rankingScore - a.rankingScore;
+        if (filters.sort === "recent") return Number(b.online) - Number(a.online) || Number(b.newHere) - Number(a.newHere) || b.rankingScore - a.rankingScore;
+        return b.rankingScore - a.rankingScore || b.matchPercent - a.matchPercent;
+      })
+      .slice(0, 24);
 
     return {
       profiles,
       gridAds: gridAds.length ? gridAds : fallbackAds,
       swipeAds: swipeAds.length ? swipeAds : fallbackAds,
+      locations,
+      savedSearches,
     };
   } catch {
-    return { profiles: filterFallbackProfiles(filters), gridAds: fallbackAds, swipeAds: fallbackAds };
+    return { profiles: filterFallbackProfiles(filters), gridAds: fallbackAds, swipeAds: fallbackAds, locations: [], savedSearches: [] };
   }
 }
 
@@ -487,9 +615,10 @@ export async function getProfileDetail(id: string, viewerId?: string | null): Pr
       getViewerInteractions(viewerId),
     ]);
     if (!user) return null;
+    const [viewerCountryCode] = await Promise.all([getViewerCountryCode(viewerId)]);
     const liked = new Set(interactions.filter((item) => item.type === "LIKE").map((item) => item.toId));
     const favourites = new Set(interactions.filter((item) => item.type === "FAVOURITE").map((item) => item.toId));
-    return mapUserToDiscoveryProfile(user, 0, liked, favourites);
+    return mapUserToDiscoveryProfile(user, 0, liked, favourites, viewerCountryCode);
   } catch {
     return fallbackProfiles.find((profile) => profile.userId === id || profile.id === id) ?? null;
   }

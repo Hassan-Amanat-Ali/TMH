@@ -11,7 +11,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const body = (await request.json().catch(() => ({}))) as { action?: string; decision?: string };
     const decision = typeof body.decision === "string" && body.decision.trim() ? body.decision.trim() : "Reviewed by admin.";
     const nextStatus = body.action === "dismiss" ? ReportStatus.DISMISSED : body.action === "review" ? ReportStatus.REVIEWING : ReportStatus.RESOLVED;
-    await updateReportStatus(prisma, admin, id, nextStatus, decision);
+    await updateReportStatus(prisma, admin, id, nextStatus, decision, body.action === "remove-reel");
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });

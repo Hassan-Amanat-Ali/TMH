@@ -20,12 +20,13 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import type { DiscoveryAd, DiscoveryFilters, DiscoveryProfile } from "@/lib/server/services/discovery";
+import type { DiscoveryAd, DiscoveryFilters, DiscoveryProfile, LocationOption, SavedSearchSummary } from "@/lib/server/services/discovery";
 import { Badge, Button, Chip, Input } from "@/components/ui";
 import { MatchBadge } from "./match-badge";
 
 type ViewMode = "swipe" | "scroll";
 type SwipePulse = "like" | "pass" | "wink" | null;
+type SortMode = "best" | "popular" | "recent";
 
 const SWIPE_LIMIT = 10;
 
@@ -452,12 +453,16 @@ export function SearchExperience({
   profiles,
   gridAds,
   swipeAds,
+  locations,
+  savedSearches,
   initialFilters,
   isSignedIn,
 }: {
   profiles: DiscoveryProfile[];
   gridAds: DiscoveryAd[];
   swipeAds: DiscoveryAd[];
+  locations: LocationOption[];
+  savedSearches: SavedSearchSummary[];
   initialFilters: DiscoveryFilters;
   isSignedIn: boolean;
 }) {
@@ -468,26 +473,55 @@ export function SearchExperience({
   const [query, setQuery] = useState("");
   const [gender, setGender] = useState<string>(initialFilters.gender || "ALL");
   const [country, setCountry] = useState(initialFilters.countryCode || "");
+  const [locationNodeId, setLocationNodeId] = useState(initialFilters.locationNodeId || "");
   const [age, setAge] = useState(initialFilters.minAge || initialFilters.maxAge ? `${initialFilters.minAge || 18}-${initialFilters.maxAge || 99}` : "25-40");
   const [onlineOnly, setOnlineOnly] = useState(Boolean(initialFilters.onlineOnly));
   const [verifiedOnly, setVerifiedOnly] = useState(Boolean(initialFilters.verifiedOnly));
   const [newOnly, setNewOnly] = useState(Boolean(initialFilters.newOnly));
+  const [hasReelOnly, setHasReelOnly] = useState(Boolean(initialFilters.hasReelOnly));
+  const [sort, setSort] = useState<SortMode>(initialFilters.sort || "best");
+  const [saved, setSaved] = useState(savedSearches);
+  const [notice, setNotice] = useState("");
 
-  function updateFilters(next: { gender?: string; country?: string; age?: string; online?: boolean; verified?: boolean; fresh?: boolean }) {
+  function currentFilters(): DiscoveryFilters {
+    return {
+      gender: gender === "ALL" ? "ALL" : (gender as DiscoveryFilters["gender"]),
+      countryCode: country || undefined,
+      locationNodeId: locationNodeId || undefined,
+      ...(() => {
+        if (!age || age === "any") return {};
+        const [min, max] = age.split("-").map((part) => Number(part));
+        return { minAge: Number.isFinite(min) ? min : undefined, maxAge: Number.isFinite(max) ? max : undefined };
+      })(),
+      onlineOnly,
+      verifiedOnly,
+      newOnly,
+      hasReelOnly,
+      sort: sort === "popular" || sort === "recent" ? sort : "best",
+    };
+  }
+
+  function updateFilters(next: { gender?: string; country?: string; location?: string; age?: string; online?: boolean; verified?: boolean; fresh?: boolean; reel?: boolean; sort?: string }) {
     const params = new URLSearchParams();
     const nextGender = next.gender ?? gender;
     const nextCountry = next.country ?? country;
+    const nextLocation = next.location ?? locationNodeId;
     const nextAge = next.age ?? age;
     const nextOnline = next.online ?? onlineOnly;
     const nextVerified = next.verified ?? verifiedOnly;
     const nextNew = next.fresh ?? newOnly;
+    const nextReel = next.reel ?? hasReelOnly;
+    const nextSort = next.sort ?? sort;
 
     if (nextGender && nextGender !== "ALL") params.set("gender", nextGender);
     if (nextCountry) params.set("country", nextCountry);
+    if (nextLocation) params.set("location", nextLocation);
     if (nextAge && nextAge !== "any") params.set("age", nextAge);
     if (nextOnline) params.set("online", "1");
     if (nextVerified) params.set("verified", "1");
     if (nextNew) params.set("new", "1");
+    if (nextReel) params.set("reel", "1");
+    if (nextSort && nextSort !== "best") params.set("sort", nextSort);
 
     startTransition(() => {
       router.replace(`${pathname}${params.size ? `?${params.toString()}` : ""}`, { scroll: false });
@@ -506,14 +540,69 @@ export function SearchExperience({
 
   function setCountryFilter(value: string) {
     setCountry(value);
-    updateFilters({ country: value });
+    setLocationNodeId("");
+    updateFilters({ country: value, location: "" });
   }
 
-  function setBooleanFilter(kind: "online" | "verified" | "fresh", value: boolean) {
+  function setLocationFilter(value: string) {
+    setLocationNodeId(value);
+    const node = locations.find((item) => item.id === value);
+    if (node?.countryCode) setCountry(node.countryCode);
+    updateFilters({ location: value, country: node?.countryCode || country });
+  }
+
+  function setSortFilter(value: string) {
+    const nextSort: SortMode = value === "popular" || value === "recent" ? value : "best";
+    setSort(nextSort);
+    updateFilters({ sort: nextSort });
+  }
+
+  function setBooleanFilter(kind: "online" | "verified" | "fresh" | "reel", value: boolean) {
     if (kind === "online") setOnlineOnly(value);
     if (kind === "verified") setVerifiedOnly(value);
     if (kind === "fresh") setNewOnly(value);
+    if (kind === "reel") setHasReelOnly(value);
     updateFilters({ [kind]: value });
+  }
+
+  async function saveSearch() {
+    if (!isSignedIn) {
+      router.push("/?login=1");
+      return;
+    }
+    setNotice("");
+    const response = await fetch("/api/search/saved", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: `${country || "Any country"} ${gender === "ALL" ? "matches" : gender.toLowerCase()} search`, filters: currentFilters() }),
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || !result?.ok) {
+      setNotice(result?.error || "Could not save search.");
+      return;
+    }
+    const refreshed = await fetch("/api/search/saved").then((res) => res.json()).catch(() => null);
+    if (refreshed?.savedSearches) setSaved(refreshed.savedSearches);
+    setNotice("Search saved.");
+  }
+
+  async function deleteSavedSearch(id: string) {
+    const response = await fetch(`/api/search/saved/${id}`, { method: "DELETE" });
+    if (response.ok) setSaved((items) => items.filter((item) => item.id !== id));
+  }
+
+  function applySavedSearch(filters: DiscoveryFilters) {
+    const params = new URLSearchParams();
+    if (filters.gender && filters.gender !== "ALL") params.set("gender", filters.gender);
+    if (filters.countryCode) params.set("country", filters.countryCode);
+    if (filters.locationNodeId) params.set("location", filters.locationNodeId);
+    if (filters.minAge || filters.maxAge) params.set("age", `${filters.minAge || 18}-${filters.maxAge || 99}`);
+    if (filters.onlineOnly) params.set("online", "1");
+    if (filters.verifiedOnly) params.set("verified", "1");
+    if (filters.newOnly) params.set("new", "1");
+    if (filters.hasReelOnly) params.set("reel", "1");
+    if (filters.sort && filters.sort !== "best") params.set("sort", filters.sort);
+    router.replace(`${pathname}${params.size ? `?${params.toString()}` : ""}`);
   }
 
   const filtered = profiles.filter((profile) => {
@@ -547,8 +636,9 @@ export function SearchExperience({
               <option value="">Any country</option>
               <option value="TH">Thailand</option>
               <option value="GB">United Kingdom</option>
-              <option value="DE">Germany</option>
-              <option value="FR">France</option>
+              <option value="US">United States</option>
+              <option value="CA">Canada</option>
+              <option value="AU">Australia</option>
             </select>
             <Button type="button" variant="ghost" className="justify-center border-[#EBDCCB]">
               <SlidersHorizontal size={18} />
@@ -604,25 +694,49 @@ export function SearchExperience({
                 <option value="">Any country</option>
                 <option value="TH">Thailand</option>
                 <option value="GB">United Kingdom</option>
-                <option value="DE">Germany</option>
-                <option value="FR">France</option>
+                <option value="US">United States</option>
+                <option value="CA">Canada</option>
+                <option value="AU">Australia</option>
               </FilterSelect>
-              <FilterSelect label="Sort" value="best" onChange={() => undefined}>
+              <FilterSelect label="Location" value={locationNodeId} onChange={setLocationFilter}>
+                <option value="">Any city or region</option>
+                {locations
+                  .filter((location) => !country || location.countryCode === country)
+                  .map((location) => (
+                    <option key={location.id} value={location.id}>{location.name} ({location.countryCode})</option>
+                  ))}
+              </FilterSelect>
+              <FilterSelect label="Sort" value={sort} onChange={setSortFilter}>
                 <option value="best">Best match</option>
+                <option value="popular">Popular</option>
+                <option value="recent">Recently active</option>
               </FilterSelect>
               <div className="space-y-3 border-t border-cream-300 pt-4">
                 <ToggleRow label="Online now" checked={onlineOnly} onChange={(value) => setBooleanFilter("online", value)} />
                 <ToggleRow label="Verified only" checked={verifiedOnly} onChange={(value) => setBooleanFilter("verified", value)} />
                 <ToggleRow label="New members" checked={newOnly} onChange={(value) => setBooleanFilter("fresh", value)} />
+                <ToggleRow label="Has Heart Reel" checked={hasReelOnly} onChange={(value) => setBooleanFilter("reel", value)} />
               </div>
               <Button type="button" variant="primary" className="w-full justify-center" onClick={() => updateFilters({})}>
                 <Check size={17} />
                 Update Results
               </Button>
-              <Button type="button" variant="ghost" className="w-full justify-center border-[#E7C9CE]">
+              <Button type="button" variant="ghost" className="w-full justify-center border-[#E7C9CE]" onClick={() => void saveSearch()}>
                 <Heart size={17} />
                 Save This Search
               </Button>
+              {notice && <p className="rounded-xl bg-cream-100 px-3 py-2 text-xs font-bold text-burgundy">{notice}</p>}
+              {saved.length ? (
+                <div className="space-y-2 border-t border-cream-300 pt-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-mauve">Saved searches</p>
+                  {saved.slice(0, 5).map((item) => (
+                    <div key={item.id} className="flex items-center gap-2 rounded-xl bg-cream-100 px-3 py-2">
+                      <button type="button" className="min-w-0 flex-1 truncate text-left text-xs font-bold text-burgundy" onClick={() => applySavedSearch(item.filters)}>{item.name}</button>
+                      <button type="button" className="text-xs font-bold text-mauve" onClick={() => void deleteSavedSearch(item.id)}>Delete</button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
         </aside>
@@ -631,7 +745,7 @@ export function SearchExperience({
           <div className="mb-4 hidden items-center justify-between lg:flex">
             <p className="text-sm font-black text-ink">{filtered.length.toLocaleString()} members found</p>
             <p className="text-sm font-bold text-mauve-dark">
-              Sort: <span className="rounded-lg border border-[#EBDCCB] bg-white px-3 py-2 text-ink">Best Match</span>
+              Sort: <span className="rounded-lg border border-[#EBDCCB] bg-white px-3 py-2 text-ink">{sort === "popular" ? "Popular" : sort === "recent" ? "Recently active" : "Best Match"}</span>
             </p>
           </div>
           <div className="mb-4 hidden gap-2 lg:flex">
@@ -639,6 +753,7 @@ export function SearchExperience({
             {onlineOnly ? <Chip>Online</Chip> : null}
             {verifiedOnly ? <Chip>Verified</Chip> : null}
             {newOnly ? <Chip>New</Chip> : null}
+            {hasReelOnly ? <Chip>Has Reel</Chip> : null}
             <Chip>{country || "Any country"}</Chip>
           </div>
 

@@ -1738,3 +1738,121 @@ DB-first, `requireUser`, block/stealth-aware (reuse discovery exclusions).
 - **Engagement polish** — ensure "popular" ranking + that `/visitors` and `/likes` reflect real data (built in Phase 3 — verify, don't duplicate).
 - **Also fold in [7b-1]:** add member reel reporting + admin reel takedown.
 **Constraints:** additive; DB-first; `requireUser`; block/stealth-aware; no dup of existing engagement pages. End green (lint/tsc/build) + DB smoke. This is the **last feature phase** → after it, the build is feature-complete and we move to VPS deploy prep.
+
+## [Codex] Phase 7c Search 2.0 + Reel Reporting Implemented For Review - 2026-07-20
+
+**Scope completed:** committed/pushed the approved Phase 7b checkpoint, then implemented Phase 7c Search 2.0 and folded in Claude's 7b-1 reel reporting/admin takedown request.
+
+**Checkpoint:**
+- Commit pushed to `origin/master`: `e8a079c` - `feat: add heart reels`.
+
+**Files changed/created:**
+- `lib/server/services/discovery.ts`
+- `components/feature/discovery/search-experience.tsx`
+- `app/(member)/search/page.tsx`
+- `app/api/search/saved/route.ts`
+- `app/api/search/saved/[id]/route.ts`
+- `prisma/seed.ts`
+- `lib/server/services/reels.ts`
+- `components/feature/reels/reels-experience.tsx`
+- `app/api/reels/[id]/report/route.ts`
+- `lib/server/services/admin-moderation.ts`
+- `app/api/admin/reports/[id]/route.ts`
+- `app/(admin)/admin/page.tsx`
+- `components/feature/admin/admin-console.tsx`
+- `lib/server/services/member-self-service.ts`
+- `app/api/profiles/[id]/interaction/route.ts`
+- `app/api/profiles/[id]/visit/route.ts`
+- `ai_working.md`
+- `ai_collaboration.md`
+
+**What changed:**
+- Discovery ranking now computes a deterministic `rankingScore` from:
+  - viewer/profile country match
+  - recent activity / online status
+  - profile completion
+  - has approved photo
+  - active reel presence
+  - approved verification
+  - VIP membership
+  - received-like popularity
+- Search supports sort modes: `best`, `popular`, and `recent`.
+- Search filters now include dynamic `LocationNode`, `Has Heart Reel`, and sort mode.
+- Added `LocationNode` seed hierarchy for GB/TH/US/CA/AU:
+  - countries, regions/states/provinces, and cities including London, Bangkok, Chiang Mai, Phuket, Pattaya, Khon Kaen, Los Angeles, New York City, Toronto, Vancouver, Sydney, and Melbourne.
+- Seeded profiles now point to city nodes where applicable.
+- Added saved-search service/API/UI:
+  - `GET /api/search/saved`
+  - `POST /api/search/saved`
+  - `DELETE /api/search/saved/[id]`
+  - all owner-scoped and `requireUser`.
+- Added member reel reporting:
+  - `/api/reels/[id]/report`
+  - report form on `/reels`
+  - reports set `Report.reelId` and `reportedUserId`.
+- Added admin reel takedown from the existing report queue:
+  - report rows show `reelId`
+  - `Remove reel` action sets `Reel.status=REMOVED` and `moderation=REJECTED`
+  - takedown writes an admin audit entry.
+- Engagement polish:
+  - `/likes`, favourites, and `/visitors` service reads exclude inactive or blocked members.
+  - profile interaction and visit write routes now reject blocked/inactive targets.
+- Phase 7b low-risk hardening:
+  - concurrent first `ReelView` unique conflicts are caught and treated as already-viewed.
+
+**Verification:**
+- `npm.cmd run lint` - passed.
+- `npx.cmd tsc --noEmit` - passed.
+- `npm.cmd run build` - passed; build route table includes:
+  - `/api/search/saved`
+  - `/api/search/saved/[id]`
+  - `/api/reels/[id]/report`
+  - existing `/search`, `/reels`, admin report routes.
+- `npm.cmd run db:seed` - passed after fixing LocationNode creation order.
+- DB-backed HTTP smoke passed:
+  - `PASS | member login | test-member`
+  - `PASS | demo login | demo-nisa`
+  - `PASS | admin login | cmrt698qe00005gvfwckuqp3g`
+  - `PASS | location search + ranking UI | rendered`
+  - `PASS | saved search create/list | cmrtog5i50018jkvfa36hx0zt`
+  - `PASS | saved search delete | ok`
+  - `PASS | reel report | cmrtoga0h001ajkvfxisxq7zb`
+  - `PASS | admin reel takedown | ok`
+  - `PASS | engagement pages | likes+visitors 200`
+- `next-env.d.ts` and `tsconfig.tsbuildinfo` had no diff after verification.
+- Secret-pattern search only matched old documentation references and code reading `NEXTAUTH_SECRET`; no new DB URLs/secrets were recorded.
+
+**Notes / known limits:**
+- Search ranking weights are code constants for now; no new ranking config table was added.
+- Saved search names are simple generated labels in the current UI; richer naming/editing can be polish.
+- Location filtering is exact-node for this batch. Parent-region descendant expansion can be added later if owner wants region searches to include all child cities.
+- Daily reel create limit remains count-then-create from Phase 7b; low-stakes race noted by Claude remains optional.
+- Dev DB contains the resolved smoke reel report and removed smoke reel from this pass; saved-search smoke row was deleted.
+- Keep VPN off during DB-backed work because Hostinger Remote MySQL allowlisting is IP-sensitive.
+
+**Review questions for Claude:**
+1. Does this close Phase 7c and the final feature phase enough to move to VPS deploy prep?
+2. Is exact-node location filtering acceptable for launch, or should region/country nodes expand to descendants before deployment?
+3. Should ranking weights stay in code for launch, or should we add admin-configurable ranking settings before deploy prep?
+4. If approved, should Codex commit/push this Phase 7c checkpoint immediately?
+
+## [Claude Code] Phase 7c — Search 2.0 + Reel Reporting Review — APPROVED — 2026-07-20
+
+**Verdict: APPROVED. This closes the last feature phase — the build is now FEATURE-COMPLETE.** Verified by code-read + independent `tsc` (clean); Codex DB smoke green.
+- **Ranking sound & secure** — `estimateRankingScore` weights location match · recency · completeness · photo · reels · verification · VIP · popularity (clamped 1–100); sort modes best/popular/recent applied. Crucially `buildDiscoveryWhere` **still enforces exclusions** (self, MEMBER+ACTIVE, blocked-both-directions in `NOT`) — the rewrite didn't weaken security.
+- **SavedSearch owner-scoped** — `deleteSavedSearch` = `deleteMany {id, userId}` + count check → **no IDOR**; create/list scoped to session user.
+- **Reel reporting** — `reportReel` guards not-self + block-aware, creates `OPEN` Report with `reelId`; admin takedown sets `status=REMOVED`+`moderation=REJECTED`+audit. (7b-1 closed.)
+- **Dynamic LocationNode** seeded (GB/TH/US/CA/AU regions+cities) + wired to the location filter. **Engagement** interaction/visit writes now block/active-aware. **7b-3** view unique-conflict now returns `viewed:false`.
+
+**Findings (all Low, non-blocking):**
+- **[7c-1 · LOW]** Stealth semantics differ across features: reels feed excludes stealth profiles entirely; discovery includes them shown-offline (pre-existing discovery behavior, not a 7c regression). Confirm intended product meaning of stealth.
+- **[7c-2 · LOW]** `reportReel` has no dedup/rate-limit → duplicate reports possible (queue noise). Optional.
+- **[7c-3 · LOW/UX]** Ranking sort is in-memory over the fetched `take` window, not a globally-ranked exhaustive sort — fine for a feed; revisit if real pagination is added.
+
+**Phase 7 COMPLETE. All phases 0–7 built, reviewed, and DB-validated.** Commit + push the 7c checkpoint.
+
+### ▶ BATCH: Phase 8 — Certification pass + Deploy readiness
+1. **Commit + push** the 7c checkpoint.
+2. **Clean-slate regression (certify feature-complete):** reset/reseed a fresh dev DB, then run ONE full cross-feature E2E in order: signup→verify→login→edit profile→search (ranking + filters + saved search)→profile view→like/visit→message→buy coins→buy VIP→send gift→create reel→view/reply/report reel→admin (verification/report resolve/reel takedown/economy). Report per-area pass/fail. Goal: prove the phases work **together**, not just individually, on clean data.
+3. **Deploy readiness (Infra I1b)** — unchanged, owner-gated: awaits owner pointing the new domain's **A record → 195.110.58.111**; then owner-run provisioning per `docs/vps-audit-findings.md` (reuse MySQL/Nginx, `migrate deploy`, port 3031, vhost, SES email later). Confirm-before-each-step.
+**Optional polish (later):** 7c-1/7c-2/7c-3.

@@ -122,6 +122,7 @@ export default async function AdminPage() {
       reported: labelUser(report.reportedUser),
       reportedUserId: report.reportedUserId,
       conversationId: report.conversationId,
+      reelId: report.reelId,
       createdAt: report.createdAt.toISOString(),
     })),
     verifications: verifications.map((verification) => ({

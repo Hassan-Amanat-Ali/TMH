@@ -32,6 +32,7 @@ type AdminReport = {
   reported: string;
   reportedUserId: string | null;
   conversationId: string | null;
+  reelId: string | null;
   createdAt: string;
 };
 
@@ -247,9 +248,11 @@ export function AdminConsole({ data }: { data: AdminConsoleData }) {
                   </div>
                   <p className="mt-3 text-sm text-cream-200">Reporter: {report.reporter} · Reported: {report.reported}</p>
                   {report.conversationId && <p className="mt-1 text-xs text-cream/55">Conversation: {report.conversationId}</p>}
+                  {report.reelId && <p className="mt-1 text-xs text-cream/55">Reel: {report.reelId}</p>}
                   {report.note && <p className="mt-3 rounded-2xl bg-white/8 p-3 text-sm leading-6 text-cream-100">{report.note}</p>}
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  {report.reelId && <button type="button" disabled={busy} onClick={() => mutate(`/api/admin/reports/${report.id}`, { action: "remove-reel", decision: "Reel removed after report review." })} className="min-h-9 rounded-full bg-danger px-3 text-xs font-bold text-white disabled:opacity-50">Remove reel</button>}
                   <button type="button" disabled={busy} onClick={() => mutate(`/api/admin/reports/${report.id}`, { action: "resolve", decision: "Resolved by admin." })} className="min-h-9 rounded-full bg-gold px-3 text-xs font-bold text-burgundy-dark disabled:opacity-50">Resolve</button>
                   <button type="button" disabled={busy} onClick={() => mutate(`/api/admin/reports/${report.id}`, { action: "dismiss", decision: "Dismissed by admin." })} className="min-h-9 rounded-full border border-gold/30 px-3 text-xs font-bold text-gold-light disabled:opacity-50">Dismiss</button>
                 </div>

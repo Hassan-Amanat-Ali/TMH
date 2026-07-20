@@ -44,7 +44,18 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ error: "Daily swipe limit reached." }, { status: 429 });
     }
 
-    const target = await prisma.user.findFirst({ where: { id, role: "MEMBER", status: "ACTIVE" }, select: { id: true } });
+    const target = await prisma.user.findFirst({
+      where: {
+        id,
+        role: "MEMBER",
+        status: "ACTIVE",
+        NOT: [
+          { blocksMade: { some: { blockedId: user.id } } },
+          { blocksReceived: { some: { blockerId: user.id } } },
+        ],
+      },
+      select: { id: true },
+    });
     if (!target) {
       return NextResponse.json({ error: "Profile not found." }, { status: 404 });
     }

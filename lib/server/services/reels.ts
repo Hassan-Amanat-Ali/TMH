@@ -1,4 +1,4 @@
-import { MediaType, MembershipLevel, Prisma, type ReelStatus } from "@/lib/prisma/client";
+import { MediaType, MembershipLevel, Prisma, type ReelStatus, type ReportCategory } from "@/lib/prisma/client";
 import { prisma, getPrismaClient } from "@/lib/server/prisma";
 import { getOrCreateConversation, sendConversationMessage } from "@/lib/server/services/messaging";
 
@@ -234,10 +234,15 @@ export async function recordReelView(userId: string, reelId: string) {
 
   const existing = await prisma.reelView.findUnique({ where: { reelId_viewerId: { reelId, viewerId: userId } } });
   if (existing) return { viewed: false };
-  await prisma.$transaction([
-    prisma.reelView.create({ data: { reelId, viewerId: userId } }),
-    prisma.reel.update({ where: { id: reelId }, data: { viewsCount: { increment: 1 } } }),
-  ]);
+  try {
+    await prisma.$transaction([
+      prisma.reelView.create({ data: { reelId, viewerId: userId } }),
+      prisma.reel.update({ where: { id: reelId }, data: { viewsCount: { increment: 1 } } }),
+    ]);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { viewed: false };
+    throw error;
+  }
   return { viewed: true };
 }
 
@@ -269,4 +274,33 @@ export async function replyToReel(userId: string, reelId: string, body: string) 
   const intro = reel.caption ? `Replying to your Heart Reel: "${reel.caption.slice(0, 120)}"` : "Replying to your Heart Reel";
   const result = await sendConversationMessage(userId, conversation.id, `${intro}\n\n${text}`);
   return { conversationId: conversation.id, messageId: result.message.id, warning: result.warning };
+}
+
+export async function reportReel(userId: string, reelId: string, category: ReportCategory, note?: string) {
+  const reel = await prisma.reel.findFirst({
+    where: {
+      id: reelId,
+      userId: { not: userId },
+      user: {
+        role: "MEMBER",
+        NOT: [
+          { blocksMade: { some: { blockedId: userId } } },
+          { blocksReceived: { some: { blockerId: userId } } },
+        ],
+      },
+    },
+    select: { id: true, userId: true },
+  });
+  if (!reel) throw new Error("Reel unavailable.");
+
+  return prisma.report.create({
+    data: {
+      reporterId: userId,
+      reportedUserId: reel.userId,
+      reelId: reel.id,
+      category,
+      note: note?.trim().slice(0, 1000) || null,
+      status: "OPEN",
+    },
+  });
 }

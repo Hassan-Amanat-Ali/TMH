@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
-import { Crown, Eye, Loader2, Plus, Send, Sparkles, Video } from "lucide-react";
+import { AlertTriangle, Crown, Eye, Loader2, Plus, Send, Sparkles, Video } from "lucide-react";
 import { Badge, Button, Card, Input, Toast } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import type { getReelFeed } from "@/lib/server/services/reels";
@@ -29,6 +29,9 @@ export function ReelsExperience({ initialData }: { initialData: ReelFeedData }) 
   const [mediaUrl, setMediaUrl] = useState("");
   const [thumbnailUrl, setThumbnailUrl] = useState("");
   const [caption, setCaption] = useState("");
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportCategory, setReportCategory] = useState("HARASSMENT");
+  const [reportNote, setReportNote] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ tone: "success" | "warning"; text: string } | null>(null);
 
@@ -99,6 +102,29 @@ export function ReelsExperience({ initialData }: { initialData: ReelFeedData }) 
       setNotice({ tone: "success", text: "Reply sent to messages." });
     } catch (error) {
       setNotice({ tone: "warning", text: error instanceof Error ? error.message : "Could not reply to reel." });
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function submitReport(event: FormEvent) {
+    event.preventDefault();
+    if (!selected) return;
+    setPending("report");
+    setNotice(null);
+    try {
+      const response = await fetch(`/api/reels/${selected.id}/report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: reportCategory, note: reportNote }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.ok) throw new Error(result?.error || "Could not report reel.");
+      setReportOpen(false);
+      setReportNote("");
+      setNotice({ tone: "success", text: "Report sent to moderation." });
+    } catch (error) {
+      setNotice({ tone: "warning", text: error instanceof Error ? error.message : "Could not report reel." });
     } finally {
       setPending(null);
     }
@@ -197,6 +223,24 @@ export function ReelsExperience({ initialData }: { initialData: ReelFeedData }) 
                     Send reply
                   </Button>
                 </form>
+                <div className="border-t border-cream-200 px-4 py-3">
+                  <button type="button" onClick={() => setReportOpen((open) => !open)} className="inline-flex items-center gap-2 text-xs font-bold text-danger">
+                    <AlertTriangle className="h-4 w-4" /> Report this reel
+                  </button>
+                  {reportOpen && (
+                    <form onSubmit={submitReport} className="mt-3 grid gap-3 rounded-2xl bg-cream-100 p-3 sm:grid-cols-[180px_1fr_auto]">
+                      <select value={reportCategory} onChange={(event) => setReportCategory(event.target.value)} className="min-h-11 rounded-2xl border border-danger/20 bg-white px-3 text-sm font-bold text-burgundy outline-none">
+                        <option value="HARASSMENT">Harassment</option>
+                        <option value="SCAM">Scam</option>
+                        <option value="EXPLICIT_CONTENT">Explicit content</option>
+                        <option value="SPAM">Spam</option>
+                        <option value="OTHER">Other</option>
+                      </select>
+                      <Input value={reportNote} onChange={(event) => setReportNote(event.target.value)} placeholder="Optional note" />
+                      <Button type="submit" variant="danger" disabled={pending === "report"}>{pending === "report" ? "Sending" : "Submit"}</Button>
+                    </form>
+                  )}
+                </div>
               </>
             ) : (
               <div className="grid min-h-[420px] place-items-center p-8 text-center text-mauve-dark">No active Heart Reels yet.</div>

@@ -12,7 +12,7 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 
 ---
 
-**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 56** · **Codex → Prompt 57**
+**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 58** · **Codex → Prompt 59**
 
 ---
 
@@ -660,4 +660,62 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - **Phase 7b complete.**
 - **Edited (project code):** none — review only.
 - **▶ Codex do next:** commit + push 7b checkpoint, then **Phase 7c — Search 2.0** per board spec (weighted ranking · SavedSearch · dynamic LocationNode hierarchy · engagement polish · **+ fold in 7b-1 reel reporting**). Block/stealth-aware; no dup of existing /visitors /likes. Last feature phase. End green + DB smoke. Append `## Prompt 59 Codex`.
+- **Reminders:** VPN off for DB work.
+
+## Prompt 59 Codex
+- **User cue:** `claude updated`.
+- **Read first:** latest `TMH/ai_working.md` and `TMH/ai_collaboration.md`, especially `Prompt 58 Claude`.
+- **Checkpoint first:** committed and pushed approved Phase 7b as `e8a079c` (`feat: add heart reels`).
+- **Implemented:** Phase 7c Search 2.0 final feature phase, plus folded-in 7b-1 reel reporting/admin takedown.
+- **Files changed/created:** `lib/server/services/discovery.ts`; `components/feature/discovery/search-experience.tsx`; `app/(member)/search/page.tsx`; `app/api/search/saved/route.ts`; `app/api/search/saved/[id]/route.ts`; `prisma/seed.ts`; `lib/server/services/reels.ts`; `components/feature/reels/reels-experience.tsx`; `app/api/reels/[id]/report/route.ts`; `lib/server/services/admin-moderation.ts`; `app/api/admin/reports/[id]/route.ts`; `app/(admin)/admin/page.tsx`; `components/feature/admin/admin-console.tsx`; `lib/server/services/member-self-service.ts`; `app/api/profiles/[id]/interaction/route.ts`; `app/api/profiles/[id]/visit/route.ts`; collaboration logs.
+- **Behavior added:**
+  - Weighted discovery ranking score: location match, recent activity, completion, photos, active reels, verification, VIP boost, popularity.
+  - Sort modes: best match, popular, recently active.
+  - Dynamic `LocationNode` options in search; seed hierarchy for GB/TH/US/CA/AU with regions and cities.
+  - Seeded test/demo profiles now point to city nodes.
+  - Saved search API: create/list/delete, owner-scoped with `requireUser`.
+  - Search UI can save, list, re-run, and delete saved searches.
+  - Search filters now include dynamic location, Has Heart Reel, and sort mode.
+  - Reel reporting: member-facing report form + `/api/reels/[id]/report`.
+  - Admin reports show `reelId`; reported reels can be removed from the report queue.
+  - Admin takedown sets `Reel.status=REMOVED` and `moderation=REJECTED`, with audit log entry.
+  - Engagement polish: likes/favourites/visitors and profile interaction/visit writes now respect active-member and both-direction block exclusions.
+  - `ReelView` concurrent first-view unique conflicts now return `viewed:false` instead of surfacing an error.
+- **Commands run:**
+  - `git commit` + `git push origin master` for 7b checkpoint.
+  - `npm.cmd run lint`
+  - `npx.cmd tsc --noEmit`
+  - `npm.cmd run build`
+  - `npm.cmd run db:seed`
+  - DB cleanup only for Phase 7c smoke rows: saved searches named `Smoke Search%`, reports with `Smoke reel report%`, reels with `Smoke takedown reel%`.
+  - DB-backed HTTP smoke through `http://localhost:3001`.
+  - `git status --short`; `git diff -- next-env.d.ts tsconfig.tsbuildinfo`; secret-pattern check.
+- **Verification results:**
+  - Lint passed.
+  - Type-check passed.
+  - Build passed and listed `/api/search/saved`, `/api/search/saved/[id]`, `/api/reels/[id]/report`, existing reels/search routes.
+  - Seed passed after fixing LocationNode creation order.
+  - DB-backed smoke passed:
+    - `PASS | member login | test-member`
+    - `PASS | demo login | demo-nisa`
+    - `PASS | admin login | cmrt698qe00005gvfwckuqp3g`
+    - `PASS | location search + ranking UI | rendered`
+    - `PASS | saved search create/list | cmrtog5i50018jkvfa36hx0zt`
+    - `PASS | saved search delete | ok`
+    - `PASS | reel report | cmrtoga0h001ajkvfxisxq7zb`
+    - `PASS | admin reel takedown | ok`
+    - `PASS | engagement pages | likes+visitors 200`
+  - `next-env.d.ts` and `tsconfig.tsbuildinfo` had no diff.
+  - Secret-pattern check only matched old documentation references and code reading `NEXTAUTH_SECRET`; no new DB URLs/secrets were recorded.
+- **Notes:** Phase 7c is intentionally left uncommitted for Claude review. Dev DB contains the resolved smoke reel report and removed smoke reel from this pass; saved-search smoke row was deleted. Keep VPN off for DB-backed work.
+- **Review next (for Claude):** Review `## [Codex] Phase 7c Search 2.0 + Reel Reporting Implemented For Review - 2026-07-20`; decide whether this closes the final feature phase and whether Codex should commit/push before VPS deploy prep.
+
+## Prompt 60 Claude (review — Phase 7c Search 2.0; FEATURE-COMPLETE)
+- **User cue:** `codex updated` — review Phase 7c (Search 2.0 + reel reporting).
+- **Verdict: APPROVED — closes the last feature phase. Build is FEATURE-COMPLETE (phases 0–7).** Verified by code-read + independent `tsc` (clean).
+  - Ranking weighted+deterministic (location/recency/completion/photo/reels/verified/VIP/popularity), sort best/popular/recent; `buildDiscoveryWhere` still enforces self/active/blocked-both-ways exclusions (no security regression).
+  - SavedSearch owner-scoped (deleteMany {id,userId}+count → no IDOR). reportReel guarded (not-self, block-aware) → admin takedown (REMOVED/REJECTED+audit). 7b-1 closed. LocationNode seeded+wired. Engagement writes block/active-aware. 7b-3 fixed.
+- **Findings (all Low):** 7c-1 stealth semantics differ reels-vs-discovery (confirm intent). 7c-2 reportReel no dedup. 7c-3 in-memory ranking over fetch window.
+- **Edited (project code):** none — review only.
+- **▶ Codex do next — Phase 8:** (1) commit+push 7c. (2) **Certification regression** on a clean reseeded DB — one full cross-feature E2E (auth→profile→search/saved→message→economy→reels→admin), report per-area. (3) Deploy readiness = Infra I1b, owner-gated on domain DNS → 195.110.58.111. Append `## Prompt 61 Codex`.
 - **Reminders:** VPN off for DB work.

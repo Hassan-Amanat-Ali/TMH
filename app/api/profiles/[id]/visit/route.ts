@@ -11,7 +11,18 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       return NextResponse.json({ ok: true, skipped: true });
     }
 
-    const target = await prisma.user.findFirst({ where: { id, role: "MEMBER", status: "ACTIVE" }, select: { id: true } });
+    const target = await prisma.user.findFirst({
+      where: {
+        id,
+        role: "MEMBER",
+        status: "ACTIVE",
+        NOT: [
+          { blocksMade: { some: { blockedId: user.id } } },
+          { blocksReceived: { some: { blockerId: user.id } } },
+        ],
+      },
+      select: { id: true },
+    });
     if (!target) {
       return NextResponse.json({ error: "Profile not found." }, { status: 404 });
     }

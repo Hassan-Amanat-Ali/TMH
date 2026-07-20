@@ -32,7 +32,8 @@ export async function updateReportStatus(
   admin: SessionUser,
   reportId: string,
   nextStatus: ReportStatus,
-  decision: string
+  decision: string,
+  removeReel = false
 ) {
   return db.$transaction(async (tx) => {
     const report = await tx.report.update({
@@ -43,7 +44,14 @@ export async function updateReportStatus(
         resolvedAt: nextStatus === ReportStatus.RESOLVED || nextStatus === ReportStatus.DISMISSED ? new Date() : null,
       },
     });
-    await logAdminAction(tx, admin, `REPORT_${nextStatus}`, "Report", reportId, { decision, reportedUserId: report.reportedUserId });
+    if (removeReel && report.reelId) {
+      await tx.reel.update({
+        where: { id: report.reelId },
+        data: { status: "REMOVED", moderation: "REJECTED" },
+      });
+      await logAdminAction(tx, admin, "REEL_REMOVED_FROM_REPORT", "Reel", report.reelId, { reportId, decision });
+    }
+    await logAdminAction(tx, admin, `REPORT_${nextStatus}`, "Report", reportId, { decision, reportedUserId: report.reportedUserId, reelId: report.reelId, removeReel });
     return report;
   });
 }

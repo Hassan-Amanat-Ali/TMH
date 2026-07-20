@@ -10,6 +10,25 @@ if (!url) {
 
 const prisma = new PrismaClient({ adapter: new PrismaMariaDb(url) });
 
+async function upsertLocationNode(input: { id: string; name: string; type: "COUNTRY" | "COUNTY" | "STATE" | "PROVINCE" | "DISTRICT" | "CITY"; countryCode: string; parentId?: string | null }) {
+  return prisma.locationNode.upsert({
+    where: { id: input.id },
+    update: {
+      name: input.name,
+      type: input.type,
+      countryCode: input.countryCode,
+      parentId: input.parentId || null,
+    },
+    create: {
+      id: input.id,
+      name: input.name,
+      type: input.type,
+      countryCode: input.countryCode,
+      parentId: input.parentId || null,
+    },
+  });
+}
+
 async function main() {
   // ----- Admin account (override via ADMIN_EMAIL / ADMIN_PASSWORD) -----
   const adminEmail = (process.env.ADMIN_EMAIL || "admins@tmh.com").toLowerCase();
@@ -77,6 +96,9 @@ async function main() {
       note: "Seed welcome coins.",
     },
   });
+  await upsertLocationNode({ id: "loc-country-gb", name: "United Kingdom", type: "COUNTRY", countryCode: "GB" });
+  await upsertLocationNode({ id: "loc-gb-england", name: "England", type: "COUNTY", countryCode: "GB", parentId: "loc-country-gb" });
+  await upsertLocationNode({ id: "loc-gb-london", name: "London", type: "CITY", countryCode: "GB", parentId: "loc-gb-england" });
   await prisma.profile.upsert({
     where: { userId: testMember.id },
     update: {
@@ -86,6 +108,7 @@ async function main() {
       seeking: "WOMAN",
       locationText: "London, United Kingdom",
       countryCode: "GB",
+      locationNodeId: "loc-gb-london",
       headline: "Shared QA account for first DB pass.",
       bio: "This account is seeded for local development and first end-to-end testing only.",
       intent: "Serious dating",
@@ -104,6 +127,7 @@ async function main() {
       seeking: "WOMAN",
       locationText: "London, United Kingdom",
       countryCode: "GB",
+      locationNodeId: "loc-gb-london",
       headline: "Shared QA account for first DB pass.",
       bio: "This account is seeded for local development and first end-to-end testing only.",
       intent: "Serious dating",
@@ -167,6 +191,51 @@ async function main() {
       update: setting,
       create: setting,
     });
+  }
+
+  // ----- Dynamic location hierarchy for Search 2.0 -----
+  const countries = [
+    { id: "loc-country-gb", name: "United Kingdom", countryCode: "GB" },
+    { id: "loc-country-th", name: "Thailand", countryCode: "TH" },
+    { id: "loc-country-us", name: "United States", countryCode: "US" },
+    { id: "loc-country-ca", name: "Canada", countryCode: "CA" },
+    { id: "loc-country-au", name: "Australia", countryCode: "AU" },
+  ];
+  for (const country of countries) {
+    await upsertLocationNode({ ...country, type: "COUNTRY" });
+  }
+  const regions = [
+    { id: "loc-gb-england", name: "England", type: "COUNTY" as const, countryCode: "GB", parentId: "loc-country-gb" },
+    { id: "loc-th-bangkok", name: "Bangkok", type: "PROVINCE" as const, countryCode: "TH", parentId: "loc-country-th" },
+    { id: "loc-th-chiang-mai-province", name: "Chiang Mai Province", type: "PROVINCE" as const, countryCode: "TH", parentId: "loc-country-th" },
+    { id: "loc-th-phuket-province", name: "Phuket Province", type: "PROVINCE" as const, countryCode: "TH", parentId: "loc-country-th" },
+    { id: "loc-us-ca", name: "California", type: "STATE" as const, countryCode: "US", parentId: "loc-country-us" },
+    { id: "loc-us-ny", name: "New York", type: "STATE" as const, countryCode: "US", parentId: "loc-country-us" },
+    { id: "loc-ca-ontario", name: "Ontario", type: "PROVINCE" as const, countryCode: "CA", parentId: "loc-country-ca" },
+    { id: "loc-ca-bc", name: "British Columbia", type: "PROVINCE" as const, countryCode: "CA", parentId: "loc-country-ca" },
+    { id: "loc-au-nsw", name: "New South Wales", type: "STATE" as const, countryCode: "AU", parentId: "loc-country-au" },
+    { id: "loc-au-vic", name: "Victoria", type: "STATE" as const, countryCode: "AU", parentId: "loc-country-au" },
+  ];
+  for (const region of regions) {
+    await upsertLocationNode(region);
+  }
+  const cities = [
+    { id: "loc-gb-london", name: "London", type: "CITY" as const, countryCode: "GB", parentId: "loc-gb-england" },
+    { id: "loc-gb-manchester", name: "Manchester", type: "CITY" as const, countryCode: "GB", parentId: "loc-gb-england" },
+    { id: "loc-th-bangkok-city", name: "Bangkok", type: "CITY" as const, countryCode: "TH", parentId: "loc-th-bangkok" },
+    { id: "loc-th-chiang-mai-city", name: "Chiang Mai", type: "CITY" as const, countryCode: "TH", parentId: "loc-th-chiang-mai-province" },
+    { id: "loc-th-phuket-city", name: "Phuket", type: "CITY" as const, countryCode: "TH", parentId: "loc-th-phuket-province" },
+    { id: "loc-th-pattaya", name: "Pattaya", type: "CITY" as const, countryCode: "TH", parentId: "loc-country-th" },
+    { id: "loc-th-khon-kaen", name: "Khon Kaen", type: "CITY" as const, countryCode: "TH", parentId: "loc-country-th" },
+    { id: "loc-us-los-angeles", name: "Los Angeles", type: "CITY" as const, countryCode: "US", parentId: "loc-us-ca" },
+    { id: "loc-us-new-york", name: "New York City", type: "CITY" as const, countryCode: "US", parentId: "loc-us-ny" },
+    { id: "loc-ca-toronto", name: "Toronto", type: "CITY" as const, countryCode: "CA", parentId: "loc-ca-ontario" },
+    { id: "loc-ca-vancouver", name: "Vancouver", type: "CITY" as const, countryCode: "CA", parentId: "loc-ca-bc" },
+    { id: "loc-au-sydney", name: "Sydney", type: "CITY" as const, countryCode: "AU", parentId: "loc-au-nsw" },
+    { id: "loc-au-melbourne", name: "Melbourne", type: "CITY" as const, countryCode: "AU", parentId: "loc-au-vic" },
+  ];
+  for (const city of cities) {
+    await upsertLocationNode(city);
   }
 
   // ----- Moderation rules for leakage / trigger filtering -----
@@ -402,6 +471,14 @@ async function main() {
   ];
 
   for (const demo of demoMembers) {
+    const demoLocationNodeId: Record<string, string> = {
+      "demo-mali": "loc-th-chiang-mai-city",
+      "demo-nisa": "loc-th-bangkok-city",
+      "demo-arisa": "loc-th-phuket-city",
+      "demo-pim": "loc-th-khon-kaen",
+      "demo-sirin": "loc-gb-london",
+      "demo-kan": "loc-th-pattaya",
+    };
     const user = await prisma.user.upsert({
       where: { email: demo.email },
       update: {
@@ -426,6 +503,7 @@ async function main() {
       where: { userId: user.id },
       update: {
         ...demo.profile,
+        locationNodeId: demoLocationNodeId[demo.id],
         languages: JSON.stringify(demo.profile.languages),
         interests: JSON.stringify(demo.profile.interests),
         goals: JSON.stringify(demo.profile.goals),
@@ -433,6 +511,7 @@ async function main() {
       create: {
         userId: user.id,
         ...demo.profile,
+        locationNodeId: demoLocationNodeId[demo.id],
         languages: JSON.stringify(demo.profile.languages),
         interests: JSON.stringify(demo.profile.interests),
         goals: JSON.stringify(demo.profile.goals),
