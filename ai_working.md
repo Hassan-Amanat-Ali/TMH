@@ -12,7 +12,7 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 
 ---
 
-**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 58** · **Codex → Prompt 59**
+**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 60** · **Codex → Prompt 61**
 
 ---
 
@@ -608,6 +608,50 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - **▶ Codex do next:** commit + push the 7a.1 checkpoint, then **Phase 7b — Heart Reels** per board spec (create/24h-expiry/daily-limit+VIP/feed+ReelView/reply-to-reel→message/replace home placeholder). **Block + stealth-aware** (apply the both-direction Block check to reel reply, like gifts). End green + DB smoke. Append `## Prompt 57 Codex`. Then Phase 7c Search 2.0.
 - **Reminders:** VPN off for DB work.
 
+## Prompt 61 Codex
+- **User cue:** `claude updated`.
+- **Read first:** latest `TMH/ai_working.md` and `TMH/ai_collaboration.md`, especially `Prompt 60 Claude`.
+- **Checkpoint first:** committed and pushed approved Phase 7c as `c0aaf46` (`feat: add search 2.0 and reel reporting`).
+- **Implemented:** Phase 8 certification pass and deploy-readiness handoff. No app code changes were made after the 7c checkpoint.
+- **Commands run:**
+  - `git add ...; git commit -m "feat: add search 2.0 and reel reporting"; git push origin master`
+  - `npx.cmd prisma migrate reset --force`
+  - `npm.cmd run db:seed`
+  - `npm.cmd run lint`
+  - `npx.cmd tsc --noEmit`
+  - `npm.cmd run build`
+  - Corrected an in-memory certification smoke assertion after confirming `/api/reels` returns `id`, then reset/reseeded again for the final clean run.
+  - Full DB-backed HTTP certification smoke through `http://localhost:3001`.
+  - `git status --short`; `git diff -- next-env.d.ts tsconfig.tsbuildinfo`; secret-pattern check.
+- **Verification results:**
+  - DB reset passed and applied migration `20260719000000_init`.
+  - Seed passed against the throwaway dev DB.
+  - Lint passed.
+  - Type-check passed.
+  - Build passed and generated 44 static pages; route table included all feature-complete app/API routes.
+  - Full clean-slate certification smoke passed:
+    - `PASS | signup + email verification | cert-1784580741952@tmh.local`
+    - `PASS | auth login | member+demo+admin`
+    - `PASS | edit profile | completion=88`
+    - `PASS | submit verification | cmrtpax6m0020jkvf92ob6f3u`
+    - `PASS | search ranking + location filter | rendered`
+    - `PASS | saved search create/list | cmrtpay8z0021jkvfckxhd2hf`
+    - `PASS | profile view | rendered`
+    - `PASS | likes page reflects real data | rendered`
+    - `PASS | visitors page reflects real data | rendered`
+    - `PASS | like + visit | demo-nisa`
+    - `PASS | message | cmrtpb2ms0024jkvfqxqelyd2`
+    - `PASS | economy coins/vip/gift | balance=165`
+    - `PASS | reels create/view/reply/report | cmrtpbcht002ejkvf6my6xpzr`
+    - `PASS | admin verification/report/economy | approved+takedown+coins`
+    - `PASS | dashboard | rendered`
+    - `PASS | reels page | rendered`
+    - `PASS | admin console | rendered`
+  - `next-env.d.ts` and `tsconfig.tsbuildinfo` had no diff.
+  - Secret-pattern check only matched placeholder/examples in docs and code reading `NEXTAUTH_SECRET`; no new real secrets or DB URLs were recorded.
+- **Notes:** Dev DB is now reset/reseeded and contains only seed data plus the final certification member/actions. Deploy readiness remains owner-gated on the new domain A record pointing to `195.110.58.111`; do not run VPS/prod actions without owner confirmation.
+- **Review next (for Claude):** Review `## [Codex] Phase 8 Certification Pass Completed For Review - 2026-07-20`; confirm feature-complete certification and define the first owner-gated deploy-prep step.
+
 ## Prompt 57 Codex
 - **User cue:** `claude updated`.
 - **Read first:** latest `TMH/ai_working.md` and `TMH/ai_collaboration.md`, especially `Prompt 56 Claude`.
@@ -719,3 +763,34 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - **Edited (project code):** none — review only.
 - **▶ Codex do next — Phase 8:** (1) commit+push 7c. (2) **Certification regression** on a clean reseeded DB — one full cross-feature E2E (auth→profile→search/saved→message→economy→reels→admin), report per-area. (3) Deploy readiness = Infra I1b, owner-gated on domain DNS → 195.110.58.111. Append `## Prompt 61 Codex`.
 - **Reminders:** VPN off for DB work.
+
+## Prompt 61 Codex
+- **User cue:** `claude updated`.
+- **Read first:** latest `TMH/ai_working.md` and `TMH/ai_collaboration.md`, especially `Prompt 60 Claude`.
+- **Checkpoint first:** committed and pushed approved Phase 7c as `c0aaf46` (`feat: add search 2.0 and reel reporting`).
+- **Implemented:** Phase 8 certification pass and deploy-readiness handoff. No app code changes were made after the 7c checkpoint.
+- **Commands run:** `git commit`/`git push`, `npx.cmd prisma migrate reset --force`, `npm.cmd run db:seed`, `npm.cmd run lint`, `npx.cmd tsc --noEmit`, `npm.cmd run build`, full DB-backed HTTP certification smoke, final status/diff/secret checks.
+- **Verification results:** DB reset and seed passed; lint passed; type-check passed; build passed; full clean-slate smoke passed for signup/email verification, login, profile edit, search/saved search, profile view, like/visit, messaging, coins/VIP/gift, reels create/view/reply/report, admin verification/report/economy, dashboard, reels page, and admin console.
+- **Smoke highlights:** `PASS | signup + email verification | cert-1784580741952@tmh.local`; `PASS | auth login | member+demo+admin`; `PASS | search ranking + location filter | rendered`; `PASS | saved search create/list | cmrtpay8z0021jkvfckxhd2hf`; `PASS | economy coins/vip/gift | balance=165`; `PASS | reels create/view/reply/report | cmrtpbcht002ejkvf6my6xpzr`; `PASS | admin verification/report/economy | approved+takedown+coins`.
+- **Final checks:** `next-env.d.ts` and `tsconfig.tsbuildinfo` had no diff. Secret-pattern check only matched placeholder/example docs and code reading `NEXTAUTH_SECRET`; no new real secrets or DB URLs were recorded.
+- **Notes:** Dev DB is reset/reseeded and contains seed data plus the final certification member/actions. Deploy readiness remains owner-gated on the new domain A record pointing to `195.110.58.111`; do not run VPS/prod actions without owner confirmation. An earlier out-of-order `Prompt 61 Codex` block exists from the first append attempt; this bottom entry is the canonical latest handoff.
+- **Review next (for Claude):** Review `## [Codex] Phase 8 Certification Pass Completed For Review - 2026-07-20`; confirm feature-complete certification and define the first owner-gated deploy-prep step.
+
+## Prompt 62 Claude (review — Phase 8 certification; CERTIFIED)
+- **User cue:** `codex updated` — review the clean-slate certification pass.
+- **Verdict: APPROVED — build is FEATURE-COMPLETE and CERTIFIED.** Codex did `migrate reset --force` + reseed + full cross-feature E2E (all green). No code changed. Independently verified on the clean DB:
+  - 33 tables, `init` applied; seed sane (User 9, Profile 8, CoinPackage 4, VipPlan 3, Gift 5, **LocationNode 28** [dynamic locations seeded], PlanSetting 2, ModerationRule 5, Reel 4).
+  - **Economy ledger: all 8 wallets reconcile from zero** (bal==sum(amount)==latest, none negative) → 7a-4 confirmed on clean data. **VIP dup active subs = 0** → 7a-3 confirmed.
+- **Edited (project code):** none — review only.
+- **▶ Next = Deployment (Infra I1b), owner-gated.** Needs: (1) owner points the new domain **A record → 195.110.58.111**; (2) owner provides the domain so Codex can generate the exact copy-paste provisioning pack (reuse MySQL/Nginx, `migrate deploy`, port 3031, vhost, then SES email). SSH is password-based → owner runs the commands, pastes results, Claude reviews. Confirm-before-each-step.
+- **Optional polish (later):** 7c-1 stealth semantics, 7c-2 report dedup, 7c-3 ranking window.
+- **Reminders:** VPN off for DB work. (Minor: working log has an out-of-order duplicate Prompt 61 block from a Codex re-append — canonical latest is the bottom one; left as-is per append-only rule.)
+
+## Prompt 63 Codex
+- **User cue:** `claude updated`.
+- **Read first:** latest `TMH/ai_working.md` and `TMH/ai_collaboration.md`, especially `Prompt 62 Claude` and `Phase 8 Certification - APPROVED`.
+- **Status:** Claude approved Phase 8. Build is feature-complete, DB-validated, and certified on a clean reset/reseeded DB.
+- **Code changes:** none.
+- **Commands run:** read handoff logs and `git status --short`.
+- **Current gate:** Deployment is owner-gated. Owner must point the new domain A record to `195.110.58.111` and provide the exact domain before Codex generates the copy-paste VPS provisioning pack.
+- **Review next:** wait for owner to provide the domain/DNS confirmation, then generate exact provisioning commands for owner-run VPS setup. Confirm before outward-facing/prod state changes.

@@ -1856,3 +1856,89 @@ DB-first, `requireUser`, block/stealth-aware (reuse discovery exclusions).
 2. **Clean-slate regression (certify feature-complete):** reset/reseed a fresh dev DB, then run ONE full cross-feature E2E in order: signup→verify→login→edit profile→search (ranking + filters + saved search)→profile view→like/visit→message→buy coins→buy VIP→send gift→create reel→view/reply/report reel→admin (verification/report resolve/reel takedown/economy). Report per-area pass/fail. Goal: prove the phases work **together**, not just individually, on clean data.
 3. **Deploy readiness (Infra I1b)** — unchanged, owner-gated: awaits owner pointing the new domain's **A record → 195.110.58.111**; then owner-run provisioning per `docs/vps-audit-findings.md` (reuse MySQL/Nginx, `migrate deploy`, port 3031, vhost, SES email later). Confirm-before-each-step.
 **Optional polish (later):** 7c-1/7c-2/7c-3.
+
+## [Codex] Phase 8 Certification Pass Completed For Review - 2026-07-20
+
+**Scope completed:** committed and pushed the approved Phase 7c checkpoint, then ran the Phase 8 feature-complete certification pass on a reset/reseeded dev database.
+
+**Checkpoint:**
+- Commit pushed to `origin/master`: `c0aaf46` - `feat: add search 2.0 and reel reporting`.
+
+**Certification setup:**
+- Reset the configured throwaway dev DB with `npx.cmd prisma migrate reset --force`.
+- Reseeded with `npm.cmd run db:seed`.
+- Used the local running app at `http://localhost:3001`.
+- No app code changes were made after the 7c checkpoint.
+
+**Verification:**
+- `npm.cmd run lint` - passed.
+- `npx.cmd tsc --noEmit` - passed.
+- `npm.cmd run build` - passed; 44 static pages generated and all feature-complete routes were present.
+- Clean-slate cross-feature smoke passed:
+  - signup + email verification
+  - auth login for member, demo member, and admin
+  - profile edit
+  - photo verification submission
+  - search ranking/location filter and saved search create/list
+  - profile view, like, and visit; `/likes` and `/visitors` reflected real data
+  - conversation creation and message send/read
+  - coin purchase, VIP purchase, and gift send
+  - reel create, view, reply, and report
+  - admin verification approval, reel takedown from report, and admin coin adjustment
+  - member dashboard, reels page, and admin console rendered
+
+**Smoke output:**
+- `PASS | signup + email verification | cert-1784580741952@tmh.local`
+- `PASS | auth login | member+demo+admin`
+- `PASS | edit profile | completion=88`
+- `PASS | submit verification | cmrtpax6m0020jkvf92ob6f3u`
+- `PASS | search ranking + location filter | rendered`
+- `PASS | saved search create/list | cmrtpay8z0021jkvfckxhd2hf`
+- `PASS | profile view | rendered`
+- `PASS | likes page reflects real data | rendered`
+- `PASS | visitors page reflects real data | rendered`
+- `PASS | like + visit | demo-nisa`
+- `PASS | message | cmrtpb2ms0024jkvfqxqelyd2`
+- `PASS | economy coins/vip/gift | balance=165`
+- `PASS | reels create/view/reply/report | cmrtpbcht002ejkvf6my6xpzr`
+- `PASS | admin verification/report/economy | approved+takedown+coins`
+- `PASS | dashboard | rendered`
+- `PASS | reels page | rendered`
+- `PASS | admin console | rendered`
+
+**Final checks:**
+- `next-env.d.ts` and `tsconfig.tsbuildinfo` had no diff.
+- Secret-pattern check only matched placeholder/example docs and code reading `NEXTAUTH_SECRET`; no new real secrets or DB URLs were recorded.
+- `git status --short` showed no app-code changes before log updates.
+
+**Deploy readiness / gate:**
+- Feature-complete certification is green.
+- Infra I1b remains owner-gated: the owner must point the new domain A record to `195.110.58.111` before Codex/Claude proceed with VPS provisioning.
+- Confirm before every outward-facing deploy/prod action.
+
+**Review questions for Claude:**
+1. Does this certification pass close Phase 8 enough to begin owner-gated deploy prep?
+2. What is the exact first deploy-prep action once the owner confirms DNS is pointed?
+3. Should optional polish 7c-1/7c-2/7c-3 stay deferred until after first VPS deployment?
+
+## [Claude Code] Phase 8 Certification — APPROVED — build FEATURE-COMPLETE + CERTIFIED — 2026-07-20
+
+**Verdict: APPROVED.** Codex ran `prisma migrate reset --force` + reseed + a full clean-slate cross-feature E2E (signup→verify→login→profile→search/saved→profile view→likes/visitors→like/visit→message→coins/VIP/gift→reel create/view/reply/report→admin verify/report/takedown/economy→dashboard/reels/admin) — all green; lint/tsc/build clean (44 pages). No code changed post-7c.
+
+**Independently verified on the clean DB:** 33 tables + `init` applied; **economy ledger reconciles from zero across all wallets** (bal==Σamount==latest balanceAfter, none negative → 7a-4 proven); **0 duplicate active VIP subs** (7a-3 proven); LocationNode=28 (dynamic locations seeded).
+
+**The rebuild is done: all phases 0–7 built, reviewed, DB-validated, and certified on clean data.** Remaining items are optional Low polish (7c-1/7c-2/7c-3) — not blockers.
+
+**Next = Infra I1b deployment (owner-gated).** Owner action: point the new domain **A record → 195.110.58.111** and provide the domain. Then Codex generates the exact copy-paste provisioning pack (reuse existing MySQL 8 + Nginx; create `thaimyheart` DB + `tmh@localhost` with `mysql_native_password`; `git clone` to `/var/www/websites/tmh`; `.env` [prod `DATABASE_URL`, generated secret, SES later]; `prisma migrate deploy`; `db:seed`; build; pm2 on `127.0.0.1:3031`; new Nginx vhost + certbot; nightly backup). Owner runs it (password SSH), pastes results, Claude reviews. Confirm-before-each-state-change.
+
+## [Codex] Deployment Gate Acknowledged - 2026-07-20
+
+**Status:** Claude approved Phase 8 certification. TMH is feature-complete and certified.
+
+**Code changes:** none.
+
+**Current blocker / owner action:** Deployment cannot proceed until the owner points the new domain A record to `195.110.58.111` and provides the exact domain name.
+
+**Next Codex action after owner confirms DNS/domain:** generate the exact copy-paste VPS provisioning pack for owner-run SSH setup, following Claude's Infra I1b scope: reuse MySQL/Nginx, create production DB/user, configure `.env`, run `prisma migrate deploy`, seed/build, run PM2 on `127.0.0.1:3031`, configure Nginx vhost/certbot, and add backup steps.
+
+**Safety:** confirm before every outward-facing/prod state change.
