@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChangeEvent, FormEvent, useState } from "react";
 import { Archive, Ban, Flag, ImagePlus, Languages, Send, Star, Tag, Undo2, X } from "lucide-react";
 import { Button, Card, Toast } from "@/components/ui";
+import { SendGiftButton, type GiftOption } from "@/components/feature/economy/send-gift-button";
 import type { ChatMessage, ConversationDetail, ConversationSummary } from "@/lib/server/services/messaging";
 
 export function MessagingView({
@@ -12,11 +13,15 @@ export function MessagingView({
   initialConversations,
   initialConversation,
   initialFilters,
+  giftOptions,
+  giftBalance,
 }: {
   currentUserId: string;
   initialConversations: ConversationSummary[];
   initialConversation: ConversationDetail | null;
   initialFilters: { favourite?: boolean; label?: string; archived?: boolean };
+  giftOptions: GiftOption[];
+  giftBalance: number;
 }) {
   const [conversations, setConversations] = useState(initialConversations);
   const [active, setActive] = useState(initialConversation);
@@ -276,7 +281,12 @@ export function MessagingView({
                 return (
                   <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[78%] rounded-3xl px-4 py-3 text-sm leading-6 ${mine ? "bg-burgundy text-cream" : "bg-white text-ink"}`}>
-                      {message.mediaUrl ? (
+                      {message.type === "GIFT" ? (
+                        <div className={`mb-3 flex items-center gap-3 rounded-2xl px-3 py-2 ${mine ? "bg-white/10" : "bg-cream-100"}`}>
+                          <span className="text-3xl">{message.mediaUrl || "Gift"}</span>
+                          <span className="text-xs font-bold uppercase tracking-[0.14em]">Gift sent</span>
+                        </div>
+                      ) : message.mediaUrl ? (
                         <a href={message.mediaUrl} target="_blank" rel="noreferrer" className="relative mb-3 block aspect-[4/3] w-56 max-w-full overflow-hidden rounded-2xl bg-black/10">
                           <Image src={message.mediaUrl} alt="Message attachment" fill sizes="224px" className="object-cover" />
                         </a>
@@ -353,6 +363,9 @@ export function MessagingView({
             <Link href={`/profiles/${active.otherUserId}`} className="mt-5 block rounded-full bg-gold px-5 py-3 text-center text-sm font-bold text-burgundy-dark">
               View profile
             </Link>
+            <div className="mt-3">
+              <SendGiftButton receiverId={active.otherUserId} receiverName={active.otherName} gifts={giftOptions} initialBalance={giftBalance} compact />
+            </div>
           </>
         ) : (
           <p className="text-sm leading-6 text-cream-200">Profile preview appears here after you select a conversation.</p>

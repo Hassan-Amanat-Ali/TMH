@@ -1,13 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Flag, Gift, MapPin, MessageCircle, ShieldCheck, Sparkles } from "lucide-react";
+import { Flag, MapPin, MessageCircle, ShieldCheck, Sparkles } from "lucide-react";
 import type { DiscoveryProfile } from "@/lib/server/services/discovery";
-import { Badge, Button, Card, Chip } from "@/components/ui";
+import { Badge, Card, Chip } from "@/components/ui";
 import { MatchBadge } from "./match-badge";
 import { ProfileActionButtons } from "./profile-action-buttons";
 import { ProfileVisitTracker } from "./profile-visit-tracker";
+import { SendGiftButton, type GiftOption } from "@/components/feature/economy/send-gift-button";
 
-export function ProfileDetailView({ profile }: { profile: DiscoveryProfile }) {
+export function ProfileDetailView({ profile, gifts = [], giftBalance = 0 }: { profile: DiscoveryProfile; gifts?: GiftOption[]; giftBalance?: number }) {
   return (
     <div className="bg-cream-100">
       <ProfileVisitTracker profileId={profile.userId} />
@@ -111,10 +112,7 @@ export function ProfileDetailView({ profile }: { profile: DiscoveryProfile }) {
                 <MessageCircle size={18} />
                 Message
               </Link>
-              <Button type="button" variant="ghost">
-                <Gift size={18} />
-                Send gift
-              </Button>
+              <SendGiftButton receiverId={profile.userId} receiverName={profile.name} gifts={gifts} initialBalance={giftBalance} compact />
             </div>
           </Card>
           <Card className="bg-white p-5">

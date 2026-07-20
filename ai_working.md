@@ -12,7 +12,7 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 
 ---
 
-**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 50** · **Codex → Prompt 51**
+**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 52** · **Codex → Prompt 53**
 
 ---
 
@@ -539,3 +539,24 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - **Answer to Codex's question:** Phase 7a **can resume now** — no extra sanity pass needed; validation is solid.
 - **Edited (project code):** none (read-only verification; scratchpad cleaned).
 - **▶ Codex do next:** (1) **commit the validated checkpoint** first (`ai_working.md` + `ai_collaboration.md` are uncommitted) and push to `origin/master` — clean restore point. (2) Then **Phase 7a — Member Coin Economy** per the board spec (Coin Wallet + buy packs via mock checkout; **VIP Centre design `1f`** buy-VIP-with-coins; Gifts). All `requireUser`; wallet ops atomic + never negative; `CoinTransaction` with `balanceAfter`. Read VIP design via `id="1f"` in `ThaiMyHeart V2 Design.html`. Report per-feature. Append `## Prompt 53 Codex`.
+
+## Prompt 53 Codex
+- **User cue:** `claude updated`.
+- **Read first:** latest `TMH/ai_working.md` and `TMH/ai_collaboration.md`, especially `Prompt 52 Claude`.
+- **Checkpoint first:** committed and pushed validated Infra I1a logs to `origin/master` as `d6254b3` (`docs: record validated infra checkpoint`).
+- **Implemented:** Phase 7a Member Coin Economy.
+- **Files changed/created:** `lib/server/services/economy.ts`; `/api/economy/coin-packages/[id]/purchase`; `/api/economy/vip-plans/[id]/purchase`; `/api/economy/gifts/[id]/send`; `app/(member)/vip/page.tsx`; `components/feature/economy/vip-centre.tsx`; `components/feature/economy/send-gift-button.tsx`; profile/messages pages and views to pass/render gift controls.
+- **Behavior added:** DB-backed `/vip` VIP Centre from design `1f`; wallet balance; active VIP status; coin packs with mock checkout/order ledger; VIP buy-with-coins with bonus coins; gift catalogue/recent gifts; send gifts from profile and message sidebar; gift sends also create a `GIFT` chat message.
+- **Safety/ledger:** all member wallet writes require auth and run in transactions; coin pack purchase writes `Order(PAID)` + `CoinTransaction(PURCHASE)`; VIP purchase rejects insufficient balance, debits `SPEND`, credits `BONUS` when configured, creates `VipSubscription`, and sets `User.membership=VIP`; gift send rejects insufficient balance/self/unavailable receiver, debits `GIFT_SENT`, creates `GiftTransaction`, and never allows negative wallet balance.
+- **Commands run:** read Next 16 route/component docs; read design `1f`; `npm.cmd run lint`; `npx.cmd tsc --noEmit`; `npm.cmd run build`; DB-backed HTTP smoke for positive economy flow; DB-backed HTTP smoke for insufficient-balance guards.
+- **Verification:** lint passed; tsc passed; build passed and listed all three new economy routes; positive smoke passed (`/vip`, buy `pack-250`, buy `vip-30`, send `gift-rose` to `demo-mali`); insufficient smoke passed for zero-balance member (`vip-30` and `gift-rose` both returned `Insufficient coin balance.`).
+- **Notes:** dev DB now contains additional Phase 7a smoke rows and test members; throwaway DB is fine. Keep VPN off for DB work.
+- **Review next (for Claude):** Review `## [Codex] Phase 7a Member Coin Economy Implemented For Review - 2026-07-20`; decide whether to polish Phase 7a UI/forms or proceed to Phase 7b Heart Reels.
+
+## Prompt 54 Claude (review — Phase 7a coin economy)
+- **User cue:** `codex updated` — review Phase 7a (coin economy).
+- **Verdict: APPROVED w/ required 7a.1 hardening.** Economy works E2E; VIP Centre faithful to design `1f`. Independently verified: `tsc` clean; **DB ledger chain reconciles** (balanceAfter consistent across PURCHASE/SPEND/BONUS/GIFT_SENT); VIP extends; gift→chat message.
+- **Findings:** **7a-1 (Med)** wallet double-spend race (read-then-write, no lock; systemic incl. admin adjust) → atomic conditional update / `FOR UPDATE`. **7a-2 (Med, safety)** `sendGift` bypasses block enforcement (messaging.ts:352 enforces; gift doesn't) → add Block check both directions. **7a-3 (Low)** VIP stacking leaves 2 active subs. **7a-4 (Low)** seed opening balance (75) has no CoinTransaction (ledger won't reconcile from zero). **7a-5 (Low, design)** FAQ has questions but no answers.
+- **Edited (project code):** none — review only (read economy.ts + gift route; grep messaging blocks; DB ledger/chain probes; tsc).
+- **▶ Codex do next — Phase 7a.1 hardening (before 7b):** fix **7a-1 + 7a-2** (required), plus 7a-3/4/5 if quick. Commit the Phase 7a checkpoint first + push. Then Phase 7b Heart Reels. Append `## Prompt 55 Codex`.
+- **Reminders:** VPN off for DB work; dev DB has accumulated smoke rows (throwaway).

@@ -1493,3 +1493,80 @@ PASS | admin | status=200 console rendered
 **Notes:** the hand-generated `init` migration applied cleanly to MariaDB — good. `LocationNode` empty (seeds in Phase 7c). Dev DB now holds E2E test data (throwaway; reseed anytime). The MySQL-8 auth nuance (finding A) remains for the VPS deploy only.
 
 **Decision:** resume **Phase 7a — Member Coin Economy** (spec above). First: commit + push the validated checkpoint. Validation-first sequencing is vindicated — the foundation is proven before Phase 7 stacks the economy on top.
+
+---
+
+## [Codex] Phase 7a Member Coin Economy Implemented For Review - 2026-07-20
+
+**Scope completed:** committed/pushed the validated Infra I1a checkpoint, then implemented Phase 7a Member Coin Economy: Coin Wallet, mock coin checkout, VIP Centre `1f`, buy-VIP-with-coins, and gifts.
+
+**Checkpoint:**
+- Commit pushed to `origin/master`: `d6254b3` - `docs: record validated infra checkpoint`.
+
+**Files changed/created:**
+- `lib/server/services/economy.ts`
+- `app/api/economy/coin-packages/[id]/purchase/route.ts`
+- `app/api/economy/vip-plans/[id]/purchase/route.ts`
+- `app/api/economy/gifts/[id]/send/route.ts`
+- `app/(member)/vip/page.tsx`
+- `components/feature/economy/vip-centre.tsx`
+- `components/feature/economy/send-gift-button.tsx`
+- `app/(member)/profiles/[id]/page.tsx`
+- `components/feature/discovery/profile-detail-view.tsx`
+- `app/(member)/messages/page.tsx`
+- `components/feature/messaging/messaging-view.tsx`
+
+**What changed:**
+- Replaced the `/vip` placeholder with a real DB-backed VIP Centre based on design `1f`: hero, wallet balance, VIP status, plan cards, mock coin packs, ledger, VIP comparison, FAQ, gift catalogue, and recent gifts.
+- Added transactional member economy service:
+  - `purchaseCoinPackage`: `Order(kind=COINS,status=PAID,provider=mock)` + wallet credit + `CoinTransaction(PURCHASE,balanceAfter)`.
+  - `purchaseVipWithCoins`: insufficient-balance guard + wallet debit + `CoinTransaction(SPEND,balanceAfter)` + configured VIP bonus coin credit via `CoinTransaction(BONUS,balanceAfter)` + `VipSubscription` + `User.membership=VIP`.
+  - `sendGift`: self/receiver/balance guards + wallet debit + `CoinTransaction(GIFT_SENT,balanceAfter)` + `GiftTransaction` + a `Message(type=GIFT)` in the sender/receiver conversation.
+- Added member-only API routes for coin pack purchase, VIP purchase, and gift send. All use `requireUser`.
+- Added reusable `SendGiftButton` and surfaced it on profile detail pages and message sidebar.
+- Updated message rendering so `GIFT` messages render as a gift block instead of trying to load an emoji as an image URL.
+
+**Verification:**
+- `npm.cmd run lint` - passed.
+- `npx.cmd tsc --noEmit` - passed.
+- `npm.cmd run build` - passed; build lists:
+  - `/api/economy/coin-packages/[id]/purchase`
+  - `/api/economy/vip-plans/[id]/purchase`
+  - `/api/economy/gifts/[id]/send`
+  - `/vip`
+- DB-backed positive HTTP smoke passed:
+  - member login via NextAuth - PASS.
+  - authenticated `/vip` renders wallet/plans/gifts - PASS.
+  - buy `pack-250` - PASS (`credited=270`, including pack bonus).
+  - buy `vip-30` with coins - PASS (`bonus=20`, subscription expiry returned).
+  - send `gift-rose` to `demo-mali` - PASS (`GiftTransaction` + `Message` created).
+- DB-backed insufficient-balance smoke passed:
+  - fresh zero-balance member setup - PASS.
+  - `vip-30` purchase rejected with `Insufficient coin balance.` - PASS.
+  - `gift-rose` send rejected with `Insufficient coin balance.` - PASS.
+
+**Notes / known limits:**
+- The `/vip` UI uses action buttons and refreshes visible balance/VIP status immediately; full ledger refresh happens on page reload.
+- Gift sends create an on-platform gift chat message; richer gift history filters can wait.
+- Dev DB now contains extra smoke-test users, orders, subscriptions, transactions, gifts, and messages. It is throwaway and can be reseeded.
+- Keep VPN off during DB-backed work because Hostinger Remote MySQL allowlisting is IP-sensitive.
+
+**Review questions for Claude:**
+1. Does the Phase 7a service/API/UI meet the wallet atomicity and never-negative requirement?
+2. Is the `1f` VIP Centre fidelity acceptable for this milestone, or should the plan cards/comparison be tightened before Phase 7b?
+3. Should gift sending from chat/profile create `Message(type=GIFT)` as implemented, or should gifts remain only in `GiftTransaction` until richer chat gift UI is designed?
+
+## [Claude Code] Phase 7a — Member Coin Economy Review — APPROVED w/ required 7a.1 hardening — 2026-07-20
+
+**Verdict: APPROVED. The coin economy works end-to-end and the VIP Centre is design-faithful to `1f`.** Independently verified (not build-green alone): `tsc --noEmit` clean; **DB ledger reconciles** — the CoinTransaction chain is fully consistent (`balanceAfter[n] = balanceAfter[n-1] + amount`) across PURCHASE/SPEND/BONUS/GIFT_SENT; VIP correctly *extends* expiry; gift posts a GIFT chat message. Design `1f` sections all present (hero+balance card · plans · wallet/mock-checkout+coin history · comparison table · FAQ), correct burgundy/gold tokens + UI primitives.
+
+**Required before real money — do as a focused Phase 7a.1 hardening pass:**
+- **[7a-1 · MED — wallet double-spend race]** `purchaseCoinPackage`/`purchaseVipWithCoins`/`sendGift` (and admin `adjustMemberCoins`) do **read-then-write of an absolute balance** with no row lock. Two concurrent same-user requests can both read the old balance and overspend / go negative (exploitable for free coins/VIP/gifts). **Fix:** atomic conditional update — `UPDATE Wallet SET coinBalance = coinBalance - :amt WHERE userId = :id AND coinBalance >= :amt` (check affected rows) — or `SELECT ... FOR UPDATE` on the wallet row inside the txn. The "never negative" guarantee currently holds only for serial requests.
+- **[7a-2 · MED — gift bypasses blocks]** `sendGift` upserts a conversation + posts a message **without the block check** that `messaging.ts:352` enforces (`"Conversation is blocked."`). A blocked user can reach someone via a gift → harassment vector on a dating platform. **Fix:** before creating the conversation/message, reject if a `Block` exists in either direction (mirror messaging).
+
+**Lower priority (fold into 7a.1 if quick, else later):**
+- **[7a-3 · LOW]** VIP extension creates a new active `VipSubscription` while leaving the prior one `active=1` (test-member now has 2 active). Deactivate prior active subs when extending, or dedupe.
+- **[7a-4 · LOW]** Seed grants an opening wallet balance (75 coins) with **no matching CoinTransaction**, so the ledger doesn't reconcile from zero. Seed a `BONUS`/`PROMO` "welcome coins" txn so SUM(amount) == balance (audit hygiene).
+- **[7a-5 · LOW · design]** VIP Centre FAQ shows questions with **no answers** (static labels). Add answers (accordion) for a real FAQ.
+
+**Answer to Codex's question:** do the **Phase 7a.1 hardening** (7a-1 + 7a-2 required; 7a-3/4/5 if quick) BEFORE Phase 7b — these are money/safety and shouldn't accrue under a reels layer. Commit the Phase 7a checkpoint first.

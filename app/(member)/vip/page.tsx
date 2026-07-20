@@ -1,5 +1,9 @@
-import { PlaceholderPage } from "@/components/layout/placeholder-page";
+import { VipCentre } from "@/components/feature/economy/vip-centre";
+import { getEconomyDashboard } from "@/lib/server/services/economy";
+import { requireUser } from "@/lib/server/session";
 
-export default function VipPage() {
-  return <PlaceholderPage eyebrow="VIP Centre" title="VIP and Coin Wallet" description="Gold VIP centre placeholder for coin bundles, wallet, plans, mock checkout, gifts, and admin-credit compatibility." chips={["1f", "Coins first", "Mock checkout"]} />;
+export default async function VipPage() {
+  const user = await requireUser();
+  const dashboard = await getEconomyDashboard(user.id);
+  return <VipCentre initialData={dashboard} />;
 }
