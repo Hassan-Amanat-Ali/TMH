@@ -21,11 +21,26 @@ const comparison = [
 ];
 
 const faqs = [
-  "What happens when VIP expires?",
-  "Can I buy VIP with coins?",
-  "Do bonus coins expire?",
-  "Can admin add coins manually?",
-  "Can I renew before expiry?",
+  {
+    question: "What happens when VIP expires?",
+    answer: "Your account returns to Standard automatically. Existing messages and profile data stay in place.",
+  },
+  {
+    question: "Can I buy VIP with coins?",
+    answer: "Yes. Choose a VIP plan here and the wallet debits coins instantly when your balance is enough.",
+  },
+  {
+    question: "Do bonus coins expire?",
+    answer: "Bonus coins stay in your wallet like purchased coins during this mock checkout phase.",
+  },
+  {
+    question: "Can admin add coins manually?",
+    answer: "Yes. Admin adjustments are recorded in the same coin ledger with an audit note.",
+  },
+  {
+    question: "Can I renew before expiry?",
+    answer: "Yes. Buying another plan extends from your current VIP expiry date.",
+  },
 ];
 
 function shortDate(value: string | null) {
@@ -217,9 +232,12 @@ export function VipCentre({ initialData }: { initialData: EconomyData }) {
             </div>
             <div className="mt-5 space-y-3">
               {faqs.map((faq) => (
-                <div key={faq} className="flex items-center gap-3 rounded-2xl border border-gold/20 bg-white/5 px-4 py-3 text-sm font-semibold text-cream-200">
-                  <Check size={16} className="text-gold-light" />
-                  {faq}
+                <div key={faq.question} className="rounded-2xl border border-gold/20 bg-white/5 px-4 py-3">
+                  <div className="flex items-center gap-3 text-sm font-semibold text-cream-200">
+                    <Check size={16} className="text-gold-light" />
+                    {faq.question}
+                  </div>
+                  <p className="mt-2 pl-7 text-xs leading-5 text-cream-200/80">{faq.answer}</p>
                 </div>
               ))}
             </div>

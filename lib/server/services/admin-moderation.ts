@@ -144,13 +144,24 @@ export async function updateMemberModeration(
 
 export async function adjustMemberCoins(db: PrismaClient, admin: SessionUser, userId: string, amount: number, note: string) {
   return db.$transaction(async (tx) => {
-    const wallet = await tx.wallet.upsert({
+    await tx.wallet.upsert({
       where: { userId },
       update: {},
       create: { userId, coinBalance: 0 },
     });
-    const balanceAfter = wallet.coinBalance + amount;
-    await tx.wallet.update({ where: { userId }, data: { coinBalance: balanceAfter } });
+    if (amount < 0) {
+      const affected = await tx.$executeRaw`
+        UPDATE \`Wallet\`
+        SET \`coinBalance\` = \`coinBalance\` + ${amount}
+        WHERE \`userId\` = ${userId} AND \`coinBalance\` >= ${Math.abs(amount)}
+      `;
+      if (Number(affected) !== 1) throw new Error("Insufficient coin balance.");
+    } else {
+      await tx.wallet.update({ where: { userId }, data: { coinBalance: { increment: amount } } });
+    }
+    const wallet = await tx.wallet.findUnique({ where: { userId } });
+    if (!wallet) throw new Error("Wallet unavailable.");
+    const balanceAfter = wallet.coinBalance;
     const transaction = await tx.coinTransaction.create({
       data: {
         userId,

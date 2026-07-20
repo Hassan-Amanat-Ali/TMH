@@ -24,11 +24,26 @@ async function getWallet(tx: Tx, userId: string) {
   });
 }
 
-async function ensureSpendableWallet(tx: Tx, userId: string, amount: number) {
-  const wallet = await getWallet(tx, userId);
-  if (wallet.coinBalance < amount) {
+async function creditWallet(tx: Tx, userId: string, amount: number) {
+  await getWallet(tx, userId);
+  return tx.wallet.update({
+    where: { userId },
+    data: { coinBalance: { increment: amount } },
+  });
+}
+
+async function debitWallet(tx: Tx, userId: string, amount: number) {
+  await getWallet(tx, userId);
+  const affected = await tx.$executeRaw`
+    UPDATE \`Wallet\`
+    SET \`coinBalance\` = \`coinBalance\` - ${amount}
+    WHERE \`userId\` = ${userId} AND \`coinBalance\` >= ${amount}
+  `;
+  if (Number(affected) !== 1) {
     throw new Error("Insufficient coin balance.");
   }
+  const wallet = await tx.wallet.findUnique({ where: { userId } });
+  if (!wallet) throw new Error("Wallet unavailable.");
   return wallet;
 }
 
@@ -131,9 +146,7 @@ export async function purchaseCoinPackage(userId: string, packageId: string) {
     const pack = await tx.coinPackage.findFirst({ where: { id: packageId, active: true } });
     if (!pack) throw new Error("Coin package unavailable.");
 
-    const wallet = await getWallet(tx, userId);
     const credited = pack.coins + pack.bonus;
-    const balanceAfter = wallet.coinBalance + credited;
     const order = await tx.order.create({
       data: {
         userId,
@@ -146,7 +159,8 @@ export async function purchaseCoinPackage(userId: string, packageId: string) {
         providerRef: `mock-coin-${Date.now()}`,
       },
     });
-    await tx.wallet.update({ where: { userId }, data: { coinBalance: balanceAfter } });
+    const wallet = await creditWallet(tx, userId, credited);
+    const balanceAfter = wallet.coinBalance;
     const transaction = await tx.coinTransaction.create({
       data: {
         userId,
@@ -166,9 +180,6 @@ export async function purchaseVipWithCoins(userId: string, planId: string) {
     const plan = await tx.vipPlan.findFirst({ where: { id: planId, active: true } });
     if (!plan || !plan.costCoins) throw new Error("VIP plan unavailable.");
 
-    const wallet = await ensureSpendableWallet(tx, userId, plan.costCoins);
-    const balanceAfterSpend = wallet.coinBalance - plan.costCoins;
-    const balanceAfter = balanceAfterSpend + plan.bonusCoins;
     const currentVip = await tx.vipSubscription.findFirst({
       where: { userId, active: true, expiresAt: { gt: new Date() } },
       orderBy: { expiresAt: "desc" },
@@ -176,7 +187,8 @@ export async function purchaseVipWithCoins(userId: string, planId: string) {
     const startsFrom = currentVip && currentVip.expiresAt > new Date() ? currentVip.expiresAt : new Date();
     const expiresAt = addDays(startsFrom, plan.durationDays);
 
-    await tx.wallet.update({ where: { userId }, data: { coinBalance: balanceAfter } });
+    const walletAfterSpend = await debitWallet(tx, userId, plan.costCoins);
+    const balanceAfterSpend = walletAfterSpend.coinBalance;
     const spendTransaction = await tx.coinTransaction.create({
       data: {
         userId,
@@ -187,6 +199,8 @@ export async function purchaseVipWithCoins(userId: string, planId: string) {
         note: `VIP purchase: ${plan.label}`,
       },
     });
+    const walletAfterBonus = plan.bonusCoins > 0 ? await creditWallet(tx, userId, plan.bonusCoins) : walletAfterSpend;
+    const balanceAfter = walletAfterBonus.coinBalance;
     const bonusTransaction = plan.bonusCoins > 0
       ? await tx.coinTransaction.create({
           data: {
@@ -199,6 +213,7 @@ export async function purchaseVipWithCoins(userId: string, planId: string) {
           },
         })
       : null;
+    await tx.vipSubscription.updateMany({ where: { userId, active: true }, data: { active: false } });
     const subscription = await tx.vipSubscription.create({
       data: {
         userId,
@@ -224,9 +239,19 @@ export async function sendGift(userId: string, giftId: string, receiverId: strin
     if (!gift) throw new Error("Gift unavailable.");
     if (!receiver) throw new Error("Receiver unavailable.");
 
-    const wallet = await ensureSpendableWallet(tx, userId, gift.costCoins);
-    const balanceAfter = wallet.coinBalance - gift.costCoins;
-    await tx.wallet.update({ where: { userId }, data: { coinBalance: balanceAfter } });
+    const block = await tx.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: userId, blockedId: receiverId },
+          { blockerId: receiverId, blockedId: userId },
+        ],
+      },
+      select: { id: true },
+    });
+    if (block) throw new Error("Gift cannot be sent because this connection is blocked.");
+
+    const wallet = await debitWallet(tx, userId, gift.costCoins);
+    const balanceAfter = wallet.coinBalance;
     const giftTransaction = await tx.giftTransaction.create({
       data: {
         giftId: gift.id,

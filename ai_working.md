@@ -12,7 +12,7 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 
 ---
 
-**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 52** · **Codex → Prompt 53**
+**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 54** · **Codex → Prompt 55**
 
 ---
 
@@ -560,3 +560,50 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - **Edited (project code):** none — review only (read economy.ts + gift route; grep messaging blocks; DB ledger/chain probes; tsc).
 - **▶ Codex do next — Phase 7a.1 hardening (before 7b):** fix **7a-1 + 7a-2** (required), plus 7a-3/4/5 if quick. Commit the Phase 7a checkpoint first + push. Then Phase 7b Heart Reels. Append `## Prompt 55 Codex`.
 - **Reminders:** VPN off for DB work; dev DB has accumulated smoke rows (throwaway).
+
+## Prompt 55 Codex
+- **User cue:** `claude updated`.
+- **Read first:** latest `TMH/ai_working.md` and `TMH/ai_collaboration.md`, especially `Prompt 54 Claude`.
+- **Checkpoint first:** committed and pushed the approved Phase 7a economy checkpoint to `origin/master` as `0d96c18` (`feat: add member coin economy`).
+- **Implemented:** Phase 7a.1 economy hardening.
+- **Files changed:** `lib/server/services/economy.ts`; `lib/server/services/admin-moderation.ts`; `prisma/seed.ts`; `components/feature/economy/vip-centre.tsx`; `ai_working.md`; `ai_collaboration.md`.
+- **Fixes completed:**
+  - Wallet spend paths now use atomic conditional SQL updates so VIP purchases, gift sends, and admin negative adjustments cannot spend below zero under concurrent requests.
+  - Coin pack purchases and positive admin adjustments use atomic wallet increments before ledger writes.
+  - Gift sending now blocks if either member has blocked the other, before wallet debit, conversation creation, or chat message creation.
+  - VIP purchases deactivate prior active subscriptions before creating the new active subscription.
+  - Seed opening wallet balances now have matching welcome `BONUS` transactions.
+  - VIP Centre FAQ now includes answers instead of question-only rows.
+- **Commands run:**
+  - `npm.cmd run lint`
+  - `npx.cmd tsc --noEmit`
+  - `npm.cmd run build`
+  - `npm.cmd run db:seed`
+  - DB-backed HTTP hardening smoke through `http://localhost:3001`
+  - `git status --short`; `git diff -- next-env.d.ts`; secret-pattern `rg`
+- **Verification results:**
+  - Lint passed.
+  - Type-check passed.
+  - Build passed.
+  - Seed passed against the throwaway dev DB.
+  - Hardening smoke passed:
+    - `PASS | member login | ok`
+    - `PASS | admin login | ok`
+    - `PASS | gift block guard | Gift cannot be sent because this connection is blocked.`
+    - `PASS | vip active dedupe | active subscriptions=1`
+    - `PASS | admin negative guard | Insufficient coin balance.`
+    - `PASS | seed welcome ledger | rows=2`
+  - `next-env.d.ts` had no diff.
+  - Secret-pattern check had no matches.
+- **Notes:** Phase 7a.1 is intentionally left uncommitted for Claude review. Dev DB contains additional smoke rows and remains throwaway. Keep VPN off for DB-backed work.
+- **Review next (for Claude):** Review `## [Codex] Phase 7a.1 Economy Hardening Implemented For Review - 2026-07-20`; decide whether 7a-1 through 7a-5 are closed and whether Codex can proceed to Phase 7b Heart Reels.
+
+## Prompt 56 Claude (review — Phase 7a.1 hardening)
+- **User cue:** `codex updated` — review 7a.1 economy hardening.
+- **Verdict: APPROVED — all findings 7a-1…7a-5 closed.** Verified by code-read + independent `tsc` (clean):
+  - 7a-1: atomic `debitWallet` (conditional SQL, affected-rows) + `creditWallet` (increment) across economy + admin `adjustMemberCoins`; balanceAfter from updated row. Race-safe/never-negative. (Also closes old E1.)
+  - 7a-2: gift block guard (both directions, pre-write). 7a-3: VIP dedupe. 7a-4: seed welcome BONUS. 7a-5: FAQ answers.
+- **Phase 7a economy COMPLETE + hardened.**
+- **Edited (project code):** none — review only.
+- **▶ Codex do next:** commit + push the 7a.1 checkpoint, then **Phase 7b — Heart Reels** per board spec (create/24h-expiry/daily-limit+VIP/feed+ReelView/reply-to-reel→message/replace home placeholder). **Block + stealth-aware** (apply the both-direction Block check to reel reply, like gifts). End green + DB smoke. Append `## Prompt 57 Codex`. Then Phase 7c Search 2.0.
+- **Reminders:** VPN off for DB work.

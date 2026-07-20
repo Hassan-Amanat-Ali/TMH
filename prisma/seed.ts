@@ -58,6 +58,25 @@ async function main() {
     update: { coinBalance: 75 },
     create: { userId: testMember.id, coinBalance: 75 },
   });
+  await prisma.coinTransaction.upsert({
+    where: { id: "test-member-welcome-coins" },
+    update: {
+      amount: 75,
+      type: "BONUS",
+      balanceAfter: 75,
+      reference: "seed",
+      note: "Seed welcome coins.",
+    },
+    create: {
+      id: "test-member-welcome-coins",
+      userId: testMember.id,
+      amount: 75,
+      type: "BONUS",
+      balanceAfter: 75,
+      reference: "seed",
+      note: "Seed welcome coins.",
+    },
+  });
   await prisma.profile.upsert({
     where: { userId: testMember.id },
     update: {
@@ -424,6 +443,26 @@ async function main() {
       where: { userId: user.id },
       update: { coinBalance: demo.membership === "VIP" ? 180 : 40 },
       create: { userId: user.id, coinBalance: demo.membership === "VIP" ? 180 : 40 },
+    });
+    const openingCoins = demo.membership === "VIP" ? 180 : 40;
+    await prisma.coinTransaction.upsert({
+      where: { id: `${demo.id}-welcome-coins` },
+      update: {
+        amount: openingCoins,
+        type: "BONUS",
+        balanceAfter: openingCoins,
+        reference: "seed",
+        note: "Seed welcome coins.",
+      },
+      create: {
+        id: `${demo.id}-welcome-coins`,
+        userId: user.id,
+        amount: openingCoins,
+        type: "BONUS",
+        balanceAfter: openingCoins,
+        reference: "seed",
+        note: "Seed welcome coins.",
+      },
     });
 
     for (const [position, url] of demo.photos.entries()) {
