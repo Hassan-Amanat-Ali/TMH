@@ -1,5 +1,9 @@
-import { PlaceholderPage } from "@/components/layout/placeholder-page";
+import { ReelsExperience } from "@/components/feature/reels/reels-experience";
+import { getReelFeed } from "@/lib/server/services/reels";
+import { requireUser } from "@/lib/server/session";
 
-export default function ReelsPage() {
-  return <PlaceholderPage eyebrow="Heart Reels" title="Reels feed" description="Heart Reels feed, create flow, 24-hour expiry, daily limits, and reply-to-reel messaging arrive in later phases." chips={["24h", "Replies", "VIP boost"]} />;
+export default async function ReelsPage() {
+  const user = await requireUser();
+  const data = await getReelFeed(user.id);
+  return <ReelsExperience initialData={data} />;
 }

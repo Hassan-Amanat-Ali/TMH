@@ -1641,3 +1641,100 @@ DB-first, `requireUser`, block-aware (apply the same both-direction `Block` chec
 - **Reply-to-reel → message** — creates a `Message` to the reel author (reuse messaging; respect blocks + safety rules; ties into the conversation model).
 - **Replace the home placeholder reels** (`components/feature/content/home-page.tsx`) with real reel data.
 **Constraints:** additive; DB-first; `requireUser`; block/stealth-aware; media via existing abstraction (no new infra); one editor at a time. End green (lint/tsc/build) + DB-backed smoke. Then Phase 7c (Search 2.0) remains.
+
+## [Codex] Phase 7b Heart Reels Implemented For Review - 2026-07-20
+
+**Scope completed:** committed/pushed the approved Phase 7a.1 checkpoint, then implemented Phase 7b Heart Reels: create, feed, 24h expiry, daily limits, VIP advantage, `ReelView`, reply-to-reel messaging, and real home-page reel data.
+
+**Checkpoint:**
+- Commit pushed to `origin/master`: `94f74a9` - `fix: harden member economy`.
+
+**Files changed/created:**
+- `lib/server/services/reels.ts`
+- `app/api/reels/route.ts`
+- `app/api/reels/[id]/view/route.ts`
+- `app/api/reels/[id]/reply/route.ts`
+- `app/(member)/reels/page.tsx`
+- `components/feature/reels/reels-experience.tsx`
+- `app/(marketing)/page.tsx`
+- `components/feature/content/home-page.tsx`
+- `ai_working.md`
+- `ai_collaboration.md`
+
+**What changed:**
+- Added a DB-first reels service using the existing `Reel`/`ReelView` schema.
+- Active feed queries require:
+  - `status=ACTIVE`
+  - `moderation=APPROVED`
+  - `expiresAt > now`
+  - `createdAt > now - 24h`
+  - active member authors only
+  - stealth profiles excluded
+  - both-direction block exclusions for signed-in viewers
+  - self excluded for signed-in viewers
+- Old active rows are soft-marked `EXPIRED` before feed reads.
+- Create flow accepts a temporary media URL and optional thumbnail/caption, infers image/video by extension, sets 24h expiry, and enforces daily caps.
+- Daily caps are Standard 3/day and VIP 8/day. VIP reels also sort first in the feed.
+- `recordReelView` dedupes by `(reelId, viewerId)` and increments `viewsCount` only on first view.
+- `replyToReel` reuses the existing conversation/message services, so reel replies inherit block checks and message moderation/safety rules.
+- `/reels` now renders a real member feed + create panel instead of a placeholder.
+- Public `/` now pulls `getReelFeed(user?.id, 4)` and renders real reel cards in the existing Heart Reels strip.
+- Reel image rendering uses CSS backgrounds instead of `next/image` so temporary/local/remote media URLs do not fight the configured image allowlist.
+
+**Verification:**
+- `npm.cmd run lint` - passed.
+- `npx.cmd tsc --noEmit` - passed.
+- `npm.cmd run build` - passed; build route table includes:
+  - `/api/reels`
+  - `/api/reels/[id]/view`
+  - `/api/reels/[id]/reply`
+  - `/reels`
+- `npm.cmd run db:seed` - passed against the throwaway dev DB.
+- DB-backed HTTP smoke passed:
+  - `PASS | member login | test-member`
+  - `PASS | demo login | demo-nisa`
+  - `PASS | create daily reels | count=3`
+  - `PASS | daily limit guard | Daily reel limit reached. Standard members can post 3 reels per day.`
+  - `PASS | feed includes active reel | reels=6`
+  - `PASS | reel view | viewed=true`
+  - `PASS | reel reply to message | conversation=cmrtn4yxa0016jkvf8g3ksr3u`
+  - `PASS | home reels strip | rendered`
+  - `PASS | reel reply block guard | Reel unavailable.`
+- `next-env.d.ts` and `tsconfig.tsbuildinfo` had no diff after verification.
+- Secret-pattern search only matched previously documented seed defaults; no new DB URLs/secrets were recorded.
+
+**Notes / known limits:**
+- Media storage is still the temporary URL path; no new storage service was added.
+- Reel moderation is set to `APPROVED` for this interim create flow so the feature is usable in dev. Admin moderation for reels remains a later hardening/polish item unless Claude wants it pulled forward.
+- Dev DB now contains Phase 7b smoke reels/messages. Temporary block row was removed after the block-guard smoke.
+- Keep VPN off during DB-backed work because Hostinger Remote MySQL allowlisting is IP-sensitive.
+
+**Review questions for Claude:**
+1. Does the 24h expiry + soft-expire implementation satisfy Phase 7b, or should expired-row marking move to a scheduled/background path later?
+2. Are Standard 3/day and VIP 8/day acceptable constants until `PlanSetting` grows reel-specific fields?
+3. Is the interim APPROVED-on-create moderation acceptable for dev, or should reel creation default to `PENDING` with a preview-only "submitted" UX before Phase 7c?
+4. If approved, should Codex commit/push this Phase 7b checkpoint before starting Phase 7c Search 2.0?
+
+## [Claude Code] Phase 7b — Heart Reels Review — APPROVED — 2026-07-20
+
+**Verdict: APPROVED.** Verified by code-read + independent `tsc` (clean); Codex's DB smoke exercised each guard.
+- **Feed exclusions thorough & correct** (`getReelFeed`): status ACTIVE + moderation APPROVED + `createdAt > now-24h` + `expiresAt > now` + not self + author MEMBER/ACTIVE + `stealthMode:false` + **blocked-both-directions excluded**. VIP sorts first (membership desc → views → recency). ✅
+- **24h expiry** double-guarded + soft `EXPIRED` marking. **Daily limits** Standard 3 / VIP 8. **ReelView** deduped (unique reelId+viewerId; viewsCount increments only on first view). ✅
+- **Reply-to-reel done right** — routes through `getOrCreateConversation` + `sendConversationMessage`, so the **messaging block + safety-keyword checks apply** (learned from the 7a gift bug; not a raw message). ✅
+- Home placeholder reels replaced with real `getReelFeed` data; design treatment preserved. Reels UI uses design-system tokens/primitives.
+
+**Findings (all Low — none blocking Phase 7c):**
+- **[7b-1 · LOW-MED · content-safety]** Reels are created `moderation: APPROVED` (auto-approve) and there is **no member-facing report path for a reel** (no reel-report route). On a dating platform with user-uploaded media this matters. Admin can act via the `moderation` field, but members can't report. **Recommend: add reel reporting** (extend the Report flow) + ensure admin reel takedown — fold into Phase 7c or a moderation-polish before launch.
+- **[7b-2 · LOW]** `createReel` daily limit is `count`-then-`create` (no lock) → a burst could post 1–2 over the cap. Trivial stakes; optional atomic tighten.
+- **[7b-3 · LOW]** `recordReelView` concurrent first-view could hit the unique constraint → ungraceful error (data stays correct). Optional catch-and-ignore.
+
+**Phase 7b complete.** Commit + push the checkpoint.
+
+### ▶ BATCH: Phase 7c — Search 2.0 (final feature phase)
+DB-first, `requireUser`, block/stealth-aware (reuse discovery exclusions).
+- **Ranking** — order discovery/search results by a weighted score: location proximity · recency (`lastActiveAt`) · profile completeness · has-photo · reels activity · verification · VIP boost. Replace/augment current ordering; keep it deterministic + tunable.
+- **SavedSearch** — members save named filter sets (`SavedSearch` model), list / re-run / delete; `requireUser`, owner-scoped.
+- **Dynamic locations** — seed the `LocationNode` hierarchy (UK/TH/US/CA/AU regions→cities; currently empty) and wire the location filter to the node tree instead of free text.
+- **Engagement polish** — ensure "popular" ranking + that `/visitors` and `/likes` reflect real data (built in Phase 3 — verify, don't duplicate).
+- **Also fold in [7b-1]:** add member reel reporting + admin reel takedown.
+**Constraints:** additive; DB-first; `requireUser`; block/stealth-aware; no dup of existing engagement pages. End green (lint/tsc/build) + DB smoke. This is the **last feature phase** → after it, the build is feature-complete and we move to VPS deploy prep.

@@ -6,20 +6,15 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 import { Check, Heart, Home, Lock, MessageCircle, Play, Plus, Search, ShieldCheck, Star, Video } from "lucide-react";
 import type { DiscoveryProfile } from "@/lib/server/services/discovery";
+import type { ReelCard } from "@/lib/server/services/reels";
 
 type MarketingHomePageProps = {
   profiles: DiscoveryProfile[];
+  reels: ReelCard[];
   isSignedIn: boolean;
 };
 
 const heroImage = "https://images.unsplash.com/photo-1534008897995-27a23e859048?auto=format&fit=crop&w=1800&q=85";
-
-const reelImages = [
-  "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=700&q=80",
-  "https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=700&q=80",
-  "https://images.unsplash.com/photo-1496440737103-cd596325d314?auto=format&fit=crop&w=700&q=80",
-  "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=700&q=80",
-];
 
 const trustItems = [
   { icon: ShieldCheck, title: "Verified Profiles", sub: "Real people, real love." },
@@ -27,13 +22,6 @@ const trustItems = [
   { icon: Heart, title: "Serious Members", sub: "Committed to lasting love." },
   { icon: Star, title: "Thai & International", sub: "Global connections." },
   { icon: MessageCircle, title: "24/7 Support", sub: "We're here to help." },
-];
-
-const reels = [
-  { name: "Nicha", age: 29, views: "12K", likes: 128 },
-  { name: "Araya", age: 27, views: "9.1K", likes: 96 },
-  { name: "Pawara", age: 28, views: "8.7K", likes: 84 },
-  { name: "Orn", age: 30, views: "11K", likes: 112 },
 ];
 
 function cityOnly(location: string) {
@@ -44,7 +32,12 @@ function profileHref(profile: DiscoveryProfile, isSignedIn: boolean) {
   return isSignedIn ? `/profiles/${profile.userId}` : "/?login=1";
 }
 
-export function MarketingHomePage({ profiles, isSignedIn }: MarketingHomePageProps) {
+function formatViews(count: number) {
+  if (count >= 1000) return `${(count / 1000).toFixed(count >= 10000 ? 0 : 1)}K`;
+  return String(count);
+}
+
+export function MarketingHomePage({ profiles, reels, isSignedIn }: MarketingHomePageProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("All");
@@ -142,16 +135,21 @@ export function MarketingHomePage({ profiles, isSignedIn }: MarketingHomePagePro
           <p className="text-sm font-medium text-mauve">Short stories from members - reply to start a conversation</p>
         </div>
         <div className="flex gap-4 overflow-x-auto pb-2">
-          {reels.map((reel, index) => (
-            <Link key={reel.name} href={isSignedIn ? "/reels" : "/?login=1"} className="relative h-[300px] w-[212px] flex-none overflow-hidden rounded-2xl shadow-[0_14px_32px_rgba(74,27,38,.16)]">
-              <Image src={reelImages[index]} alt={`${reel.name} reel`} fill sizes="212px" className="object-cover" />
+          {reels.map((reel) => (
+            <Link key={reel.id} href={isSignedIn ? "/reels" : "/?login=1"} className="relative h-[300px] w-[212px] flex-none overflow-hidden rounded-2xl shadow-[0_14px_32px_rgba(74,27,38,.16)]">
+              <span
+                role="img"
+                aria-label={`${reel.authorName} reel`}
+                className="absolute inset-0 bg-cover bg-center"
+                style={{ backgroundImage: `url("${reel.thumbnailUrl || (reel.mediaType === "IMAGE" ? reel.mediaUrl : reel.authorPhoto)}")` }}
+              />
               <span className="absolute left-2.5 top-2.5 inline-flex items-center gap-1 rounded-full bg-chrome-deep/60 px-2.5 py-1 text-[10.5px] font-semibold text-[#FFF3E8]">
-                <Play className="h-3 w-3 fill-current" /> {reel.views}
+                <Play className="h-3 w-3 fill-current" /> {formatViews(reel.viewsCount)}
               </span>
               <div className="absolute inset-x-0 bottom-0 flex flex-col gap-2 bg-gradient-to-t from-chrome-deep/90 via-chrome-deep/70 to-transparent px-3 pb-3 pt-10">
-                <span className="text-sm font-bold text-[#FFF8EE]">{reel.name}, {reel.age}</span>
+                <span className="text-sm font-bold text-[#FFF8EE]">{reel.authorName}, {reel.authorAge}</span>
                 <span className="flex gap-2">
-                  <span className="flex-1 rounded-[9px] border border-[#FFF8EE]/40 bg-[#FFF8EE]/20 py-2 text-center text-[11px] font-semibold text-[#FFF8EE]">Heart {reel.likes}</span>
+                  <span className="inline-flex flex-1 items-center justify-center gap-1 rounded-[9px] border border-[#FFF8EE]/40 bg-[#FFF8EE]/20 py-2 text-[11px] font-semibold text-[#FFF8EE]"><Heart className="h-3 w-3 fill-current" /> {reel.expiresIn}</span>
                   <span className="flex-[1.4] rounded-[9px] bg-gradient-to-br from-gold-light to-gold py-2 text-center text-[11px] font-bold text-[#3A2A12]">Reply -&gt;</span>
                 </span>
               </div>

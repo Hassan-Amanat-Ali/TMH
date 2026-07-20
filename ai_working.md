@@ -12,7 +12,7 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 
 ---
 
-**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 54** · **Codex → Prompt 55**
+**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 56** · **Codex → Prompt 57**
 
 ---
 
@@ -606,4 +606,58 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - **Phase 7a economy COMPLETE + hardened.**
 - **Edited (project code):** none — review only.
 - **▶ Codex do next:** commit + push the 7a.1 checkpoint, then **Phase 7b — Heart Reels** per board spec (create/24h-expiry/daily-limit+VIP/feed+ReelView/reply-to-reel→message/replace home placeholder). **Block + stealth-aware** (apply the both-direction Block check to reel reply, like gifts). End green + DB smoke. Append `## Prompt 57 Codex`. Then Phase 7c Search 2.0.
+- **Reminders:** VPN off for DB work.
+
+## Prompt 57 Codex
+- **User cue:** `claude updated`.
+- **Read first:** latest `TMH/ai_working.md` and `TMH/ai_collaboration.md`, especially `Prompt 56 Claude`.
+- **Checkpoint first:** committed and pushed approved Phase 7a.1 as `94f74a9` (`fix: harden member economy`).
+- **Implemented:** Phase 7b Heart Reels.
+- **Files changed/created:** `lib/server/services/reels.ts`; `app/api/reels/route.ts`; `app/api/reels/[id]/view/route.ts`; `app/api/reels/[id]/reply/route.ts`; `app/(member)/reels/page.tsx`; `components/feature/reels/reels-experience.tsx`; `app/(marketing)/page.tsx`; `components/feature/content/home-page.tsx`; `ai_working.md`; `ai_collaboration.md`.
+- **Behavior added:**
+  - DB-backed reel feed with 24h expiry filtering and soft `EXPIRED` marking for old active rows.
+  - Create reel endpoint/UI using temporary URL media entry; media type inferred; captions supported.
+  - Daily create limit: Standard 3/day, VIP 8/day.
+  - VIP advantage: VIP reels sort first, and the `/reels` page shows VIP quota/promo state.
+  - Feed excludes self, blocked users in both directions, inactive/suspended authors, stealth profiles, expired reels, and non-approved reels.
+  - `ReelView` recording via `/api/reels/[id]/view`, deduped per viewer/reel and increments `viewsCount` only on first view.
+  - Reply-to-reel via `/api/reels/[id]/reply`, creating/reusing the existing conversation and sending a normal message through the messaging service safety/block checks.
+  - Replaced the public home placeholder reel cards with real `getReelFeed(..., 4)` data while preserving the existing design treatment.
+- **Commands run:**
+  - Read Next 16 route handler and server/client component docs.
+  - `git commit` + `git push origin master` for 7a.1 checkpoint.
+  - `npm.cmd run lint`
+  - `npx.cmd tsc --noEmit`
+  - `npm.cmd run build`
+  - `npm.cmd run db:seed`
+  - DB cleanup only for prior smoke rows: deleted `test-member` reels with caption `Smoke reel%` and temporary `smoke-reel-block`.
+  - DB-backed HTTP smoke through `http://localhost:3001`.
+  - `git status --short`; `git diff -- next-env.d.ts tsconfig.tsbuildinfo`; secret-pattern check.
+- **Verification results:**
+  - Lint passed.
+  - Type-check passed.
+  - Build passed and listed `/api/reels`, `/api/reels/[id]/view`, `/api/reels/[id]/reply`, and `/reels`.
+  - Seed passed against the throwaway dev DB.
+  - DB-backed smoke passed:
+    - `PASS | member login | test-member`
+    - `PASS | demo login | demo-nisa`
+    - `PASS | create daily reels | count=3`
+    - `PASS | daily limit guard | Daily reel limit reached. Standard members can post 3 reels per day.`
+    - `PASS | feed includes active reel | reels=6`
+    - `PASS | reel view | viewed=true`
+    - `PASS | reel reply to message | conversation=cmrtn4yxa0016jkvf8g3ksr3u`
+    - `PASS | home reels strip | rendered`
+    - `PASS | reel reply block guard | Reel unavailable.`
+  - `next-env.d.ts` and `tsconfig.tsbuildinfo` had no diff.
+  - Secret-pattern check only matched previously documented seed defaults; no new secret values or DB URLs were recorded.
+- **Notes:** Phase 7b is intentionally left uncommitted for Claude review. Dev DB contains smoke reels/messages from this pass; temporary block row was removed. Keep VPN off for DB-backed work.
+- **Review next (for Claude):** Review `## [Codex] Phase 7b Heart Reels Implemented For Review - 2026-07-20`; decide whether Phase 7b is approved and whether Codex should commit/push before Phase 7c Search 2.0.
+
+## Prompt 58 Claude (review — Phase 7b Heart Reels)
+- **User cue:** `codex updated` — review Phase 7b (Heart Reels).
+- **Verdict: APPROVED.** Verified by code-read + independent `tsc` (clean). Feed exclusions thorough (self/blocked-both-ways/stealth/inactive/expired/non-approved); VIP sorts first; 24h expiry; daily limits 3/8; ReelView deduped; **reply-to-reel routes through messaging service** (block+safety checks apply — right pattern). Reels UI on design system.
+- **Findings (all Low, non-blocking):** 7b-1 (Low-Med, content-safety) reels auto-APPROVED + no member report path → add reel reporting + admin takedown. 7b-2 daily-limit count-then-create race (trivial). 7b-3 concurrent first-view unique-constraint error (trivial).
+- **Phase 7b complete.**
+- **Edited (project code):** none — review only.
+- **▶ Codex do next:** commit + push 7b checkpoint, then **Phase 7c — Search 2.0** per board spec (weighted ranking · SavedSearch · dynamic LocationNode hierarchy · engagement polish · **+ fold in 7b-1 reel reporting**). Block/stealth-aware; no dup of existing /visitors /likes. Last feature phase. End green + DB smoke. Append `## Prompt 59 Codex`.
 - **Reminders:** VPN off for DB work.
