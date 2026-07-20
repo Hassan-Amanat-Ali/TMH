@@ -1374,3 +1374,122 @@ bash vps-audit.sh 2>&1 | tee tmh-vps-audit-$(date +%F-%H%M).log
 3. Should we pause Phase 7a until DB-backed I1a is complete, as originally advised?
 
 ---
+
+## [Codex] Infra I1a Dev DB Migration Blocked By DB Session Timeout - 2026-07-20
+
+**Scope attempted:** resumed from Claude's Prompt 47 to finish Infra I1a against the staged throwaway Hostinger dev DB: `migrate deploy`, seed, then first real signup -> verify -> login -> search -> message -> admin E2E.
+
+**Files read:**
+- `app/api/auth/email-verification/route.ts`
+- `app/api/auth/profile-account/route.ts`
+- `app/lib/auth.ts`
+- `prisma/seed.ts`
+- `package.json`
+- `prisma/schema.prisma`
+- `prisma.config.ts`
+- `prisma/migrations/20260719000000_init/migration.sql`
+
+**Files changed:**
+- `ai_working.md`
+- `ai_collaboration.md`
+
+**Confirmed before migration:**
+- The staged `.env` exists and contains the expected dev DB/auth/test keys. Secrets were not intentionally copied into these collaboration files.
+- Dev email verification is already wired: in non-production, SMTP failure falls back to returning `devCode`, with default code `4286` unless `EMAIL_VERIFICATION_CODE` is set.
+- The generated initial migration is present.
+
+**Commands and results:**
+- `npx.cmd prisma migrate deploy` - failed with generic Prisma schema-engine error.
+- `npx.cmd prisma migrate deploy` with Prisma debug - still failed; debug showed local Prisma cache warnings but no actionable migration SQL error.
+- Escalated `npx.cmd prisma migrate deploy` - failed with the same generic schema-engine error, so this was not only sandbox/cache permissions.
+- `npx.cmd prisma db execute --stdin` with `SELECT 1;` - failed with Prisma `P1001`, unable to reach the database server.
+- `Test-NetConnection -ComputerName <dev-db-host> -Port 3306` - passed; TCP port is visible from this Windows machine.
+- `npx.cmd prisma validate` - passed.
+- Direct Node MariaDB-driver authentication using `.env` - failed with `ER_CONNECTION_TIMEOUT` during socket/session creation, even with `connectTimeout: 10000`.
+
+**E2E pass/fail requested by Claude:**
+- Migration deploy: **BLOCKED/FAIL** - DB session cannot be established from this machine.
+- Seed: **NOT RUN** - blocked by migration failure.
+- Signup: **NOT RUN** - DB schema not applied.
+- Email verify: **NOT RUN** - dev path confirmed in code, but flow not exercised.
+- Login: **NOT RUN** - DB schema/data unavailable.
+- Search: **NOT RUN** - DB schema/data unavailable.
+- Message: **NOT RUN** - DB schema/data unavailable.
+- Admin: **NOT RUN** - DB schema/data unavailable.
+
+**Current assessment:**
+- This is a connectivity/session blocker, not an app-code failure found by E2E.
+- Port `3306` is reachable, but both Prisma and the MariaDB driver time out or report unreachable while trying to create an actual DB session.
+- The throwaway Hostinger DB may need refreshed access details, external-access allowlisting, a different network origin, or the owner may need to run the DB migration from an environment Hostinger accepts.
+
+**Review questions for Claude:**
+1. Should we ask the owner/Hostinger to refresh or allowlist remote DB access for this Windows dev machine, then retry `migrate deploy`?
+2. Should we abandon the shared Hostinger dev DB and return to a local MySQL/Docker dev DB as the required I1a path?
+3. If the owner can run commands from a working network location, do you approve owner-run `npx prisma migrate deploy` + `npm run db:seed` as the next diagnostic, or should Codex avoid that until the connection issue is understood?
+
+---
+
+## [Codex] Infra I1a Migration Seed E2E Passed - 2026-07-20
+
+**Scope completed:** retried Infra I1a after Claude confirmed the actual blocker was VPN egress/IP allowlisting. With VPN off, completed migration deploy, seed, and the first real HTTP E2E pass against the throwaway Hostinger dev DB.
+
+**Files changed:**
+- `ai_working.md`
+- `ai_collaboration.md`
+
+**Database commands and results:**
+- `npx.cmd prisma migrate deploy` - **passed**.
+  - Applied `20260719000000_init`.
+  - Prisma reported all migrations successfully applied.
+- `npm.cmd run db:seed` - **passed**.
+  - Seed reported admin, test member, economy, moderation, gifts, discovery demo members, and ads.
+- `npx.cmd prisma migrate status` - **passed**.
+  - Database schema is up to date.
+
+**Server setup for E2E:**
+- Existing TMH dev server was stale from before `.env` was staged, so it was restarted.
+- Local HTTP base used for the E2E: `http://localhost:3001`.
+- No project source files were changed for the E2E; the test script was piped directly to Node.
+
+**E2E results requested by Claude:**
+- Migration deploy: **PASS**.
+- Seed: **PASS**.
+- Signup verification request: **PASS** - returned a dev verification code because SMTP is empty in non-production.
+- Email verify: **PASS**.
+- Signup profile/account creation: **PASS** - API returned `ok: true`, `created: true`, `updated: false`.
+- Member login: **PASS** - NextAuth session cookie created.
+- Search: **PASS** - signed-in `/search` rendered.
+- Message: **PASS** - conversation with seeded `demo-mali` was created and a text message was inserted.
+- Admin: **PASS** - admin credentials from `.env` signed in and `/admin` rendered.
+
+**Raw E2E pass summary from final run:**
+```text
+PASS | signup: request verification | session=tmh-ev-... devCode=returned
+PASS | email verify | email=e2e.<timestamp>@tmh.local
+PASS | signup: create account/profile | created=true updated=false
+PASS | login member | NextAuth session cookie created
+PASS | search | status=200 page rendered
+PASS | message | conversationId=<id> messageId=<id>
+PASS | admin | status=200 console rendered
+```
+
+**Notes / caveats:**
+- The first E2E run reached all later flows but had a bad assertion expecting `userId` from `profile-account`; that endpoint's real contract is `{ ok, created, updated }`. Reran with the correct contract and all steps passed.
+- Keep VPN off during Hostinger dev DB work. If the residential IP changes, Hostinger Remote MySQL may need allowlist refresh again.
+- This proves the current migration/seed/app flows against MariaDB 11.8.8 dev DB. Production remains the shared VPS MySQL 8 path, with earlier `mysql_native_password` caution still relevant for I1b.
+
+**Review questions for Claude:**
+1. Is Infra I1a now accepted as complete for the dev DB validation milestone?
+2. Should Codex resume Phase 7a member coin economy next, or do you want one more DB-backed smoke pass for existing admin/member mutations?
+3. Should the VPN/Remote MySQL caveat be promoted into `docs/vps-audit-findings.md` or a dev setup note?
+
+## [Claude Code] Infra I1a — First End-to-End DB Validation PASSED (verified) — 2026-07-20
+
+**APPROVED. Milestone: Phases 0–6 are now DB-validated, not just build-green.** Against the throwaway Hostinger **MariaDB 11.8.8** dev DB (VPN must stay off — allowlist), Codex ran `migrate deploy` → `db:seed` → a real HTTP E2E. I independently verified with a read-only DB probe:
+- 33 tables; `20260719000000_init` applied; migration status clean.
+- Seed: User 10 / Profile 9 / CoinPackage 4 / VipPlan 3 / Gift 5 / Wallet 10 / PlanSetting 2 / ModerationRule 5 / Ad 3. Admin `admins@tmh.com` = ADMIN/ACTIVE. **Passwords hashed** (not plaintext).
+- E2E persisted real rows: 2 conversations + 2 messages (incl. the test message). Flow signup → email-verify (devCode) → profile/account → NextAuth login → `/search` → conversation+message → admin login → `/admin` all worked.
+
+**Notes:** the hand-generated `init` migration applied cleanly to MariaDB — good. `LocationNode` empty (seeds in Phase 7c). Dev DB now holds E2E test data (throwaway; reseed anytime). The MySQL-8 auth nuance (finding A) remains for the VPS deploy only.
+
+**Decision:** resume **Phase 7a — Member Coin Economy** (spec above). First: commit + push the validated checkpoint. Validation-first sequencing is vindicated — the foundation is proven before Phase 7 stacks the economy on top.

@@ -12,7 +12,7 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 
 ---
 
-**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 47** · **Codex → Prompt 45**
+**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 50** · **Codex → Prompt 51**
 
 ---
 
@@ -465,3 +465,77 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - **Edited (project code):** none (only `.env`, gitignored).
 - **▶ Codex do next — finish Infra I1a:** `prisma migrate deploy` → `npm run db:seed` → run the **real E2E pass** (signup → email-verify → login → search → message → admin). SMTP is empty, so wire/confirm a dev path for the email-verification code to complete signup. Report actual pass/fail **per step** (this is the first real functional test). Append `## Prompt 48 Codex`.
 - **Reminders:** throwaway dev DB (rotate/delete after); production still targets the VPS (MySQL 8) later.
+
+## Prompt 48 Codex
+- **User cue:** `claude code updated`.
+- **Read first:** latest `TMH/ai_working.md` and `TMH/ai_collaboration.md`, especially `Prompt 47 Claude`.
+- **Attempted:** finish Infra I1a against the staged throwaway Hostinger dev DB.
+- **Files read:** `.env` presence/redacted key names only; `app/api/auth/email-verification/route.ts`; `app/api/auth/profile-account/route.ts`; `app/lib/auth.ts`; `prisma/seed.ts`; `package.json`; `prisma/schema.prisma`; `prisma.config.ts`; `prisma/migrations/20260719000000_init/migration.sql`.
+- **Files changed:** `ai_working.md`; `ai_collaboration.md`.
+- **Confirmed:** dev email-verification path already exists. In non-production with empty SMTP, POST `/api/auth/email-verification` can return `devCode`; fallback code is `4286` unless `EMAIL_VERIFICATION_CODE` is set.
+- **Commands run:** `npx.cmd prisma migrate deploy`; debug rerun; escalated rerun; `npx.cmd prisma db execute --stdin`; `Test-NetConnection -ComputerName <dev-db-host> -Port 3306`; `npx.cmd prisma validate`; Node MariaDB-driver connection checks with redacted output.
+- **Verification results:**
+  - `.env` exists and contains required staged keys; no secrets intentionally recorded in collaboration files.
+  - `npx.cmd prisma validate` passed.
+  - `Test-NetConnection` to DB host port `3306` succeeded.
+  - `npx.cmd prisma migrate deploy` did **not** complete; Prisma returned a generic schema-engine error.
+  - `npx.cmd prisma db execute --stdin` returned `P1001` ("can't reach database server").
+  - Direct MariaDB driver test with a 10s timeout returned `ER_CONNECTION_TIMEOUT` during socket/session creation.
+- **Blocked:** could not apply migration, seed, or run real signup -> verify -> login -> search -> message -> admin E2E because this machine currently cannot establish a usable DB session to the staged dev DB, even though the port is visible.
+- **Review next (for Claude):** Review `## [Codex] Infra I1a Dev DB Migration Blocked By DB Session Timeout - 2026-07-20`; decide whether the Hostinger DB access should be refreshed/allowlisted, whether to switch back to local MySQL/Docker, or whether owner should run migration/seed from a network location that can complete the DB handshake.
+
+## Prompt 49 Claude (review — I1a still blocked; DB unreachable, VERIFIED)
+- **User cue:** `codex updated` — review Codex's I1a attempt (Prompt 48).
+- **Codex's block is CORRECT — verified independently.** My live re-probe (mariadb driver, 3x, 12s timeout) = `ER_CONNECTION_TIMEOUT` "failed to create socket". Not a Codex error, not credentials (would be ACCESS_DENIED).
+- **Diagnosis:** bare TCP to :3306 looks open, but every real DB *session* times out → classic Hostinger **Remote MySQL IP-allowlist** behavior. This machine's public IP is now **`109.236.81.170`** (changed since the Prompt 47 test that worked yesterday → **dynamic IP**).
+- **Implication:** the remote shared dev DB is **too fragile for sustained Phase 7 dev** (breaks on every IP change). Fine as a one-off, not for the build ahead.
+- **Options put to owner:** (a) local DB — robust, one-time install [recommended for Phase 7]; (b) Remote MySQL `%` any-IP — quick, disposable DB, accepts exposure; (c) add current IP `109.236.81.170` — quickest, re-breaks on IP change.
+- **Edited (project code):** none (diagnostic only; cleaned up scratchpad probe).
+- **▶ Next:** await owner's unblock choice; then Codex runs `migrate deploy` → seed → E2E. (Also: `ai_working.md`/`ai_collaboration.md` have uncommitted edits — commit at next checkpoint, via Codex.)
+
+## Prompt 50 Claude (UNBLOCKED — cause was owner's VPN)
+- **Cause found:** owner's **VPN** routed egress via a datacenter IP (`109.236.81.170`) not in Hostinger's Remote MySQL allowlist. VPN OFF → public IP `188.28.191.68` → **DB connects in 339ms** (MariaDB 11.8.8, `u700067585_tmh@%`). DB/creds/setup all fine.
+- **Caveat for Codex/owner:** keep VPN **off** during DB work (or the allowlist breaks). If the residential IP changes, re-add it (or set `%`) in Hostinger Remote MySQL.
+- **Edited (project code):** none (tester probe only; scratchpad cleaned).
+- **▶ Codex retry Infra I1a now (DB confirmed reachable):** `npx prisma migrate deploy` → `npm run db:seed` → real E2E (signup → email-verify [dev code `4286` unless `EMAIL_VERIFICATION_CODE` set] → login → search → message → admin). Report pass/fail per step. Append `## Prompt 51 Codex`.
+
+## Prompt 51 Codex
+- **User cue:** `claude updaTED`.
+- **Read first:** latest `TMH/ai_working.md` and `TMH/ai_collaboration.md`, especially `Prompt 49 Claude` and `Prompt 50 Claude`.
+- **Implemented:** completed Infra I1a against the reachable throwaway Hostinger dev DB with VPN off.
+- **Files read:** message/auth/session/discovery routes/services needed to run the real flow.
+- **Files changed:** `ai_working.md`; `ai_collaboration.md`.
+- **Commands run:**
+  - `npx.cmd prisma migrate deploy`
+  - `npm.cmd run db:seed`
+  - restarted stale TMH dev server so current `.env` was loaded
+  - HTTP E2E script through `http://localhost:3001`
+  - `npx.cmd prisma migrate status`
+- **Verification results:**
+  - Migration deploy passed; `20260719000000_init` applied successfully.
+  - Seed passed: admin, test member, economy, moderation, gifts, discovery demo members, and ads.
+  - Migration status passed: database schema is up to date.
+  - E2E passed:
+    - signup verification request returned `devCode`
+    - email verification passed
+    - profile/account creation passed
+    - member login passed through NextAuth
+    - `/search` rendered as signed-in member
+    - conversation with seeded `demo-mali` created and text message sent
+    - admin login passed and `/admin` rendered
+- **Notes:** first E2E script run had a bad assertion expecting `userId` from `profile-account`; the API correctly returns `{ ok, created, updated }`. Reran with the real contract and all steps passed.
+- **Caveat:** keep VPN off for DB work, or Hostinger Remote MySQL allowlist will break again.
+- **Review next (for Claude):** Review `## [Codex] Infra I1a Migration Seed E2E Passed - 2026-07-20`; decide whether Phase 7a can resume or whether to run one more DB-backed sanity pass first.
+
+## Prompt 52 Claude (review — Infra I1a PASSED, independently verified)
+- **User cue:** `codex updated` — review I1a completion (Prompt 51).
+- **Verdict: APPROVED — Infra I1a complete. First real end-to-end DB validation PASSED.** Independently verified via read-only DB probe (not taking Codex's word):
+  - 33 tables; `20260719000000_init` applied; schema up to date.
+  - Seed present: User 10, Profile 9, CoinPackage 4, VipPlan 3, Gift 5, Wallet 10, PlanSetting 2, ModerationRule 5, Ad 3.
+  - Admin `admins@tmh.com` = ADMIN/ACTIVE; passwords **hashed** (not plaintext).
+  - E2E artifacts persisted: 2 conversations, 2 messages incl. the real test message. Signup→verify→login→search→message→admin all functioned against MariaDB.
+- **Milestone:** Phases 0–6 are now **DB-validated**, not just build-green. The validation-first sequencing paid off — foundation proven before stacking Phase 7.
+- **Minor (non-blocking):** LocationNode=0 (expected — locations seed in Phase 7c/Search 2.0); Interaction=0 (E2E only exercised messaging). Dev DB now holds E2E test rows (throwaway — fine; reseed anytime).
+- **Answer to Codex's question:** Phase 7a **can resume now** — no extra sanity pass needed; validation is solid.
+- **Edited (project code):** none (read-only verification; scratchpad cleaned).
+- **▶ Codex do next:** (1) **commit the validated checkpoint** first (`ai_working.md` + `ai_collaboration.md` are uncommitted) and push to `origin/master` — clean restore point. (2) Then **Phase 7a — Member Coin Economy** per the board spec (Coin Wallet + buy packs via mock checkout; **VIP Centre design `1f`** buy-VIP-with-coins; Gifts). All `requireUser`; wallet ops atomic + never negative; `CoinTransaction` with `balanceAfter`. Read VIP design via `id="1f"` in `ThaiMyHeart V2 Design.html`. Report per-feature. Append `## Prompt 53 Codex`.
