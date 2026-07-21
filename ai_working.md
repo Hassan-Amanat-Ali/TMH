@@ -12,7 +12,7 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 
 ---
 
-**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 60** · **Codex → Prompt 61**
+**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 65** · **Codex → Prompt 64**
 
 ---
 
@@ -794,3 +794,36 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - **Commands run:** read handoff logs and `git status --short`.
 - **Current gate:** Deployment is owner-gated. Owner must point the new domain A record to `195.110.58.111` and provide the exact domain before Codex generates the copy-paste VPS provisioning pack.
 - **Review next:** wait for owner to provide the domain/DNS confirmation, then generate exact provisioning commands for owner-run VPS setup. Confirm before outward-facing/prod state changes.
+
+## Prompt 64 Codex
+- **User cue:** Owner provided domain `thaimyheart.com` and confirmed the A record was updated.
+- **Read first:** latest `TMH/ai_working.md`, `TMH/ai_collaboration.md`, `docs/vps-audit-findings.md`, `docs/VPS-DEPLOYMENT.md`, `.env.example`, and git remote.
+- **DNS verification:** `thaimyheart.com` resolves to `195.110.58.111`; `www.thaimyheart.com` resolves via CNAME to `thaimyheart.com`, then A `195.110.58.111`.
+- **Implemented:** generated the owner-run deployment command pack at `docs/TMH-PRODUCTION-PROVISIONING-PACK.md`.
+- **Files created/edited:** `docs/TMH-PRODUCTION-PROVISIONING-PACK.md`, `ai_working.md`, `ai_collaboration.md`.
+- **Pack contents:** guarded blocks for read-only preflight, root-only secret generation, additive MySQL DB/user creation, clone/env/install/migrate/seed/build, PM2 on `127.0.0.1:3031`, Nginx vhost for `thaimyheart.com`/`www`, certbot, DB backup config, post-deploy checks, and later redeploy.
+- **Safety decisions:** use existing MySQL 8 + Nginx from the VPS audit; do not install MariaDB, alter existing vhosts, open 3306, change global Node, or touch other live services. DB password generation uses hex so it is safe inside `DATABASE_URL`.
+- **Commands run locally:** `Resolve-DnsName thaimyheart.com -Type A`, `Resolve-DnsName www.thaimyheart.com -Type A`, `git remote -v`, file reads, and `git status --short`.
+- **Verification:** DNS is live for apex and `www`. No VPS/prod state changes were run by Codex.
+- **Review next (for Claude):** review `docs/TMH-PRODUCTION-PROVISIONING-PACK.md`; decide whether owner should run Block 0 only first, or proceed through the first approved state-changing block after preflight output.
+
+## Prompt 65 Claude (review — production provisioning pack)
+- **User cue:** `codex updated` — review `docs/TMH-PRODUCTION-PROVISIONING-PACK.md` (owner gave domain `thaimyheart.com` + pointed A record; Codex generated the pack).
+- **Verdict: APPROVED w/ ONE required change before Block 3.** Pack is additive + well-gated; addresses all prior infra findings (mysql_native_password/3306-private/localhost-bind/backup-defaults-file/nginx -t+reload/overwrite-guard).
+- **REQUIRED [D1 · HIGH]:** Block 3 `db:seed` seeds **6 fake profiles + known test login `member@tmh.com`/`Member123!`** (verified seed.ts) onto a LIVE dating site (creds are in the public repo). → add a **production seed mode** = catalog/config + real admin only, no demo/test users. **[D2 · MED]** set real `ADMIN_EMAIL`. **[D3/D4 · LOW]** runs as root / assumes root mysql socket. **[D5 · LOW-MED]** repo appears public → consider private.
+- **Safety rec:** owner take a Hostinger VPS **snapshot** before state-changing blocks.
+- **Edited (project code):** none — review only (read pack + seed.ts).
+- **▶ Sequencing:** (1) owner may run **Block 0 (read-only preflight) now** + paste; (2) **Codex:** add prod-safe seed + real admin, update Block 3, commit/push → Claude re-review; (3) then Blocks 1→7 owner-run, confirm-before-each. Append `## Prompt 66 Codex`.
+- **Reminders:** VPN off for DB work.
+
+## Prompt 66 Codex
+- **User cue:** `claude updated`.
+- **Read first:** latest `TMH/ai_working.md`, `TMH/ai_collaboration.md`, Claude Prompt 65, `prisma/seed.ts`, and `docs/TMH-PRODUCTION-PROVISIONING-PACK.md`.
+- **Implemented:** required deployment hardening D1/D2.
+- **Files changed/created:** `prisma/seed.ts`; `docs/TMH-PRODUCTION-PROVISIONING-PACK.md`; `ai_working.md`; `ai_collaboration.md`.
+- **Seed changes:** added explicit `SEED_MODE=production` / `TMH_SEED_MODE=production`; production mode requires real `ADMIN_EMAIL` and generated `ADMIN_PASSWORD`; production mode seeds only real admin plus economy catalog, plan settings, dynamic locations, moderation rules, and gifts; production mode skips dev QA member, public test credentials, demo profiles/photos/reels, demo welcome ledgers, and demo ads. Development seed behavior remains available when `SEED_MODE` is unset.
+- **Provisioning pack changes:** Block 1 now stores an editable root-only `admin_email`; Block 3 writes `SEED_MODE="production"`, uses generated admin email/password, removes `TEST_MEMBER_*`, and runs `SEED_MODE=production npm run db:seed`.
+- **Safety:** DB password remains hex for URL-safe `DATABASE_URL`; no real secrets were added to files.
+- **Verification:** `npm.cmd run lint` passed; `npx.cmd tsc --noEmit` passed; `npm.cmd run build` passed and generated 44 static pages.
+- **DB verification note:** attempted clean dev DB production-seed verification with `npx.cmd prisma migrate reset --force` and `SEED_MODE=production npm.cmd run db:seed`, but the remote throwaway dev DB connection timed out twice with Prisma `DriverAdapterError` / socket timeout. This appears connectivity-related, not a compile/seed syntax error. Dev DB may need reseed once connectivity returns.
+- **Review next (for Claude):** review production seed mode and updated provisioning pack; decide whether the owner should run only Block 0 first, then paste output before Blocks 1-7.

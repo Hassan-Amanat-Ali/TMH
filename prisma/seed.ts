@@ -9,6 +9,18 @@ if (!url) {
 }
 
 const prisma = new PrismaClient({ adapter: new PrismaMariaDb(url) });
+const seedMode = (process.env.SEED_MODE || process.env.TMH_SEED_MODE || "development").toLowerCase();
+const productionSeed = seedMode === "production";
+
+function requireProductionAdminConfig(adminEmail: string, adminPassword: string) {
+  if (!productionSeed) return;
+  if (!process.env.ADMIN_EMAIL || adminEmail === "admins@tmh.com") {
+    throw new Error("Production seed requires a real ADMIN_EMAIL.");
+  }
+  if (!process.env.ADMIN_PASSWORD || adminPassword === "ChangeMe123") {
+    throw new Error("Production seed requires a generated ADMIN_PASSWORD.");
+  }
+}
 
 async function upsertLocationNode(input: { id: string; name: string; type: "COUNTRY" | "COUNTY" | "STATE" | "PROVINCE" | "DISTRICT" | "CITY"; countryCode: string; parentId?: string | null }) {
   return prisma.locationNode.upsert({
@@ -33,18 +45,27 @@ async function main() {
   // ----- Admin account (override via ADMIN_EMAIL / ADMIN_PASSWORD) -----
   const adminEmail = (process.env.ADMIN_EMAIL || "admins@tmh.com").toLowerCase();
   const adminPassword = process.env.ADMIN_PASSWORD || "ChangeMe123";
+  requireProductionAdminConfig(adminEmail, adminPassword);
   await prisma.user.upsert({
     where: { email: adminEmail },
-    update: { role: "ADMIN" },
+    update: {
+      role: "ADMIN",
+      status: "ACTIVE",
+      emailVerified: new Date(),
+      passwordHash: bcrypt.hashSync(adminPassword, 10),
+    },
     create: {
       email: adminEmail,
       name: "TMH Admin",
       role: "ADMIN",
+      status: "ACTIVE",
+      emailVerified: new Date(),
       passwordHash: bcrypt.hashSync(adminPassword, 10),
       wallet: { create: { coinBalance: 0 } },
     },
   });
 
+  if (!productionSeed) {
   // ----- Known dev member for shared QA (override via TEST_MEMBER_*) -----
   const testMemberEmail = (process.env.TEST_MEMBER_EMAIL || "member@tmh.com").toLowerCase();
   const testMemberPassword = process.env.TEST_MEMBER_PASSWORD || "Member123!";
@@ -156,6 +177,8 @@ async function main() {
   });
 
   // ----- Coin packages (£5→50, £8.50→100, £11→150, £15→250) -----
+  }
+
   const coinPackages = [
     { label: "Starter", coins: 50, priceGBP: "5.00", sortOrder: 1 },
     { label: "Plus", coins: 100, priceGBP: "8.50", sortOrder: 2 },
@@ -292,6 +315,7 @@ async function main() {
   }
 
   // ----- Phase 2 discovery demo members -----
+  if (!productionSeed) {
   const demoPasswordHash = bcrypt.hashSync("DemoMember123", 10);
   const demoMembers = [
     {
@@ -615,8 +639,13 @@ async function main() {
   for (const ad of ads) {
     await prisma.ad.upsert({ where: { id: ad.id }, update: ad, create: ad });
   }
+  }
 
-  console.log("Seed complete: admin, test member, economy, moderation, gifts, discovery demo members, and ads.");
+  console.log(
+    productionSeed
+      ? "Production seed complete: real admin, economy catalog, plan settings, locations, moderation rules, and gifts."
+      : "Development seed complete: admin, test member, economy, moderation, gifts, discovery demo members, and ads.",
+  );
 }
 
 main()
