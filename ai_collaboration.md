@@ -2204,3 +2204,41 @@ Owner wants **Codex to guide the deploy** from here (not Claude). Codex: lead th
 - `git diff --check` passed.
 
 **Next:** push `origin/master`, then continue the owner-run deploy from the already-recorded position: Block 1 → Block 2a → Block 2 → Block 3 → Block 4 → Block 5 → Block 6 → Block 7, with confirmation before each state-changing block.
+
+## [Claude Code] 🔴 BUG (launch-blocker) — login unreachable in COMING_SOON — fix spec — 2026-07-24
+**Owner report:** can't log in as admin — "won't let me put credentials anywhere." **Confirmed root cause:**
+- The sign-in **form only renders as a modal on `/` when `?login=1`** (`components/auth/login-modal.tsx:18` → `open = searchParams.get("login")==="1"`).
+- `app/(auth)/login/page.tsx` doesn't show the form — it links to **`/?login=1`** ("Open sign in").
+- But the launch gate redirects logged-out `/` → `/coming-soon`. So: coming-soon → `/login` → `/?login=1` → **gated back to /coming-soon**. Infinite dead-end; no form ever appears. ⇒ **no one (incl. admin) can sign in during COMING_SOON** → the entire launch-gate is unusable.
+
+**▶ FIX (Codex):** make `/login` a self-contained, always-usable sign-in form.
+1. On `app/(auth)/login/page.tsx`, render the **sign-in form open/visible directly** — do NOT require `?login=1` and do NOT link to `/`. Simplest: add a `forceOpen`/`standalone` prop to `LoginModal` (or extract a shared inline `<SignInForm>`), and render it open on `/login`.
+2. Fix the post-actions that dump users on `/` (gated): `login-modal.tsx:43` `close()` does `router.replace("/")` — during COMING_SOON `/`→coming-soon. On the standalone `/login`, cancel/close should stay on `/login` (or go `/coming-soon`), not `/`. Successful login → `router.push(next || "/dashboard")` is fine (authed users bypass the gate).
+3. Keep the marketing-home `?login=1` modal behavior for LIVE as-is.
+4. **Verify (live/dev DB):** in COMING_SOON — visit `/login` → sign-in form shows → enter admin creds → lands on `/dashboard`/`/admin` (bypasses gate); no redirect loop. Also member creds work the same.
+
+Small, contained UI/auth fix. After fix: re-run the launch-gate live smoke. Then continue the deploy.
+
+## [Codex] Login Page Launch-Mode Hotfix Implemented — 2026-07-24
+
+**Scope completed:** fixed Claude Prompt 74 launch blocker where `/login` did not render credential fields during `COMING_SOON`.
+
+**Files changed:**
+- `components/auth/login-modal.tsx`
+- `app/(auth)/login/page.tsx`
+- `ai_working.md`
+- `ai_collaboration.md`
+
+**What changed:**
+- Extracted the credential form inside `LoginModal` so it can render either in the existing modal or inline.
+- Added `standalone` mode for `/login`, which renders email/password fields directly without requiring `?login=1`.
+- Kept marketing-home modal behavior intact for `/?login=1`.
+- Standalone close behavior avoids sending users to gated `/`; successful login still routes to `next` or `/dashboard`.
+
+**Verification:**
+- `npm.cmd run lint` passed.
+- `npx.cmd tsc --noEmit` passed.
+- `npm.cmd run build` passed; 48 app routes generated.
+- `git diff --check` passed.
+
+**Next:** commit + push the hotfix, then on the VPS run `git pull`, rebuild, restart PM2, and live-smoke `/login` before continuing certbot.

@@ -12,7 +12,7 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 
 ---
 
-**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 72** · **Codex → Prompt 70**
+**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 74** · **Codex → Prompt 73**
 
 ---
 
@@ -892,3 +892,20 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - **Verification results:** lint passed; type-check passed; build passed with 48 app routes; diff check passed.
 - **Commit result:** local commit `ae56663 feat: add coming soon launch gate` created on top of `7445769 fix: add production-safe seed mode`.
 - **Next:** amend this log entry into `ae56663`, push `origin/master`, then guide owner through deploy blocks one at a time from the recorded current position.
+
+## Prompt 74 Claude (BUG found — login unreachable in COMING_SOON)
+- **Owner report (testing):** can't log in as admin — no credential fields appear.
+- **Root cause CONFIRMED:** sign-in form is a modal that only opens on `/?login=1`; `/login` links there; but launch gate redirects logged-out `/`→/coming-soon → dead loop → no form. Nobody can sign in during COMING_SOON → launch gate unusable. (login-modal.tsx:18,43; login/page.tsx.)
+- **Fix spec written for Codex:** make `/login` render the sign-in form directly (forceOpen/standalone), stop bouncing to `/`; keep home `?login=1` for LIVE; verify no loop + admin/member login works.
+- **Edited (project code):** none — diagnosis only.
+- **▶ Codex do next:** apply the `/login` fix → re-smoke launch gate → continue deploy. Append `## Prompt 75 Codex`.
+
+## Prompt 75 Codex
+- **User cue:** `claude updated`.
+- **Read first:** latest `TMH/ai_working.md` and `TMH/ai_collaboration.md`, especially Claude Prompt 74.
+- **Implemented:** `/login` launch-mode hotfix.
+- **Files changed:** `components/auth/login-modal.tsx`, `app/(auth)/login/page.tsx`, `ai_working.md`, `ai_collaboration.md`.
+- **Details:** `LoginModal` now has a shared credential form and a `standalone` mode. `/login` renders the form directly instead of linking to `/?login=1`; home modal behavior remains for LIVE/marketing use. Successful login still routes to `next` or `/dashboard`.
+- **Commands run:** `npm.cmd run lint`; `npx.cmd tsc --noEmit`; `npm.cmd run build`; `git diff --check`.
+- **Verification results:** lint passed; type-check passed; build passed with 48 app routes; diff check passed.
+- **Next:** commit + push hotfix, pull/rebuild/restart on VPS, smoke `/login`, then continue DNS/HTTPS deploy.

@@ -6,16 +6,16 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Button, Input, Modal, Toast } from "@/components/ui";
 
-function LoginModalInner() {
-  const searchParams = useSearchParams();
+type LoginModalInnerProps = {
+  standalone?: boolean;
+};
+
+function SignInForm({ next }: { next: string }) {
   const router = useRouter();
-  const [dismissed, setDismissed] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const next = useMemo(() => searchParams.get("next") || "/dashboard", [searchParams]);
-  const open = searchParams.get("login") === "1" && !dismissed;
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -33,42 +33,55 @@ function LoginModalInner() {
       return;
     }
 
-    setDismissed(true);
     router.push(next);
     router.refresh();
   }
 
+  return (
+    <form onSubmit={onSubmit} className="grid gap-4">
+      {error && <Toast tone="warning">{error}</Toast>}
+      <label className="grid gap-2 text-sm font-semibold text-mauve-dark">
+        Email
+        <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" />
+      </label>
+      <label className="grid gap-2 text-sm font-semibold text-mauve-dark">
+        Password
+        <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="current-password" />
+      </label>
+      <Button type="submit" disabled={loading}>{loading ? "Signing in..." : "Sign in"}</Button>
+      <div className="flex flex-wrap justify-between gap-3 text-sm text-mauve-dark">
+        <Link href="/forgot-password" className="font-semibold text-burgundy hover:underline">Forgot password?</Link>
+        <Link href="/signup" className="font-semibold text-burgundy hover:underline">Create account</Link>
+      </div>
+    </form>
+  );
+}
+
+function LoginModalInner({ standalone = false }: LoginModalInnerProps) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [dismissed, setDismissed] = useState(false);
+  const next = useMemo(() => searchParams.get("next") || "/dashboard", [searchParams]);
+  const open = standalone || (searchParams.get("login") === "1" && !dismissed);
+
   function close() {
     setDismissed(true);
-    router.replace("/");
+    router.replace(standalone ? "/coming-soon" : "/");
   }
+
+  if (standalone) return <SignInForm next={next} />;
 
   return (
     <Modal open={open} title="Sign in" onClose={close}>
-      <form onSubmit={onSubmit} className="grid gap-4">
-        {error && <Toast tone="warning">{error}</Toast>}
-        <label className="grid gap-2 text-sm font-semibold text-mauve-dark">
-          Email
-          <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" />
-        </label>
-        <label className="grid gap-2 text-sm font-semibold text-mauve-dark">
-          Password
-          <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="current-password" />
-        </label>
-        <Button type="submit" disabled={loading}>{loading ? "Signing in..." : "Sign in"}</Button>
-        <div className="flex flex-wrap justify-between gap-3 text-sm text-mauve-dark">
-          <Link href="/forgot-password" className="font-semibold text-burgundy hover:underline">Forgot password?</Link>
-          <Link href="/signup" className="font-semibold text-burgundy hover:underline">Create account</Link>
-        </div>
-      </form>
+      <SignInForm next={next} />
     </Modal>
   );
 }
 
-export function LoginModal() {
+export function LoginModal({ standalone = false }: { standalone?: boolean }) {
   return (
     <Suspense fallback={null}>
-      <LoginModalInner />
+      <LoginModalInner standalone={standalone} />
     </Suspense>
   );
 }
