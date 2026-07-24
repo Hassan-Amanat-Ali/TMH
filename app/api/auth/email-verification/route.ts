@@ -2,6 +2,7 @@ import { randomInt } from "node:crypto";
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/server/prisma";
+import { isPublicSignupOpen } from "@/lib/server/services/launch-settings";
 import { sendVerificationCodeEmail, sendWelcomeEmail } from "@/lib/server/mailer";
 
 const codeTtlMs = 10 * 60 * 1000;
@@ -20,6 +21,10 @@ function validEmail(value: string) {
 
 export async function POST(request: Request) {
   try {
+    if (!(await isPublicSignupOpen())) {
+      return NextResponse.json({ ok: false, message: "Thai My Heart is not open for public signup yet." }, { status: 403 });
+    }
+
     const body = await request.json();
     const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
     const userName = typeof body?.userName === "string" ? body.userName.trim() : "Member";

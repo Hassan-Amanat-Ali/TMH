@@ -225,3 +225,11 @@ export const ModAction = {
 } as const
 
 export type ModAction = (typeof ModAction)[keyof typeof ModAction]
+
+
+export const LaunchMode = {
+  COMING_SOON: 'COMING_SOON',
+  LIVE: 'LIVE'
+} as const
+
+export type LaunchMode = (typeof LaunchMode)[keyof typeof LaunchMode]

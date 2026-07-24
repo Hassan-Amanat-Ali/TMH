@@ -166,6 +166,11 @@ enum ModAction {
   FLAG
 }
 
+enum LaunchMode {
+  COMING_SOON
+  LIVE
+}
+
 // ---------------------------------------------------------------------------
 // Identity & profile
 // ---------------------------------------------------------------------------
@@ -676,6 +681,15 @@ model ModerationRule {
   updatedAt DateTime    @updatedAt
 
   @@index([kind, active])
+}
+
+model AppSetting {
+  id                 String     @id @default("default")
+  launchMode         LaunchMode @default(COMING_SOON)
+  comingSoonImageUrl String?    @db.LongText
+  headline           String     @default("Thai My Heart is almost ready")
+  subtext            String?    @db.Text
+  updatedAt          DateTime   @updatedAt
 }
 
 // ---------------------------------------------------------------------------

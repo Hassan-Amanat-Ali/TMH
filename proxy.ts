@@ -16,6 +16,9 @@ const MEMBER_PREFIXES = [
 ];
 // Pages that require an admin session.
 const ADMIN_PREFIXES = ['/admin'];
+const LAUNCH_PUBLIC_PATHS = ['/coming-soon', '/login', '/forgot-password', '/reset-password'];
+const launchModeCacheTtlMs = 20_000;
+let cachedLaunchMode: { value: 'COMING_SOON' | 'LIVE'; expiresAt: number } | null = null;
 
 function getAllowedOrigins(): string[] {
   const raw = process.env.ALLOWED_ORIGINS || process.env.NEXTAUTH_URL || '';
@@ -39,6 +42,35 @@ function corsHeadersFor(origin: string | null): Record<string, string> {
   return headers;
 }
 
+function isAllowedDuringComingSoon(pathname: string) {
+  return LAUNCH_PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+async function getLaunchMode(request: NextRequest): Promise<'COMING_SOON' | 'LIVE'> {
+  if (cachedLaunchMode && cachedLaunchMode.expiresAt > Date.now()) {
+    return cachedLaunchMode.value;
+  }
+
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const controller = new AbortController();
+    timeout = setTimeout(() => controller.abort(), 700);
+    const response = await fetch(new URL('/api/launch-state', request.url), {
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    if (!response.ok) return 'COMING_SOON';
+    const data = (await response.json()) as { launchMode?: string };
+    const value = data.launchMode === 'LIVE' ? 'LIVE' : 'COMING_SOON';
+    cachedLaunchMode = { value, expiresAt: Date.now() + launchModeCacheTtlMs };
+    return value;
+  } catch {
+    return 'COMING_SOON';
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const origin = request.headers.get('origin');
@@ -59,18 +91,27 @@ export async function proxy(request: NextRequest) {
   const needsMember = MEMBER_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   const needsAdmin = ADMIN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
-  if (needsMember || needsAdmin) {
-    const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
 
+  if (needsMember || needsAdmin) {
     if (!token) {
-      const loginUrl = new URL('/', request.url);
-      loginUrl.searchParams.set('login', '1');
+      const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('next', pathname);
       return NextResponse.redirect(loginUrl);
     }
 
     if (needsAdmin && token.role !== 'ADMIN') {
       return NextResponse.redirect(new URL('/', request.url));
+    }
+  }
+
+  // ----- Launch gate: blocks logged-out public visitors only -----
+  if (!token && !isAllowedDuringComingSoon(pathname)) {
+    const launchMode = await getLaunchMode(request);
+    if (launchMode === 'COMING_SOON') {
+      const comingSoonUrl = new URL('/coming-soon', request.url);
+      if (pathname !== '/') comingSoonUrl.searchParams.set('next', pathname);
+      return NextResponse.redirect(comingSoonUrl);
     }
   }
 

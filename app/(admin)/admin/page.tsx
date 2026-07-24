@@ -1,5 +1,6 @@
 import { AdminConsole, type AdminConsoleData } from "@/components/feature/admin/admin-console";
 import { getPrismaClient } from "@/lib/server/prisma";
+import { getLaunchSettings } from "@/lib/server/services/launch-settings";
 import { requireAdmin } from "@/lib/server/session";
 
 function labelUser(user?: { email?: string | null; name?: string | null; profile?: { displayName?: string | null } | null } | null) {
@@ -19,6 +20,12 @@ function emptyData(): AdminConsoleData {
     planSettings: [],
     moderationRules: [],
     auditLog: [],
+    launchSettings: {
+      launchMode: "COMING_SOON",
+      headline: "Thai My Heart is almost ready",
+      subtext: "Invited members can sign in while we prepare the public launch.",
+      comingSoonImageUrl: "",
+    },
     counts: {
       openReports: 0,
       pendingVerifications: 0,
@@ -43,6 +50,7 @@ export default async function AdminPage() {
     giftLogs,
     planSettings,
     moderationRules,
+    launchSettings,
     openReports,
     pendingVerifications,
     openAppeals,
@@ -99,6 +107,7 @@ export default async function AdminPage() {
     }),
     db.planSetting.findMany({ orderBy: { tier: "asc" } }),
     db.moderationRule.findMany({ orderBy: { createdAt: "desc" }, take: 80 }),
+    getLaunchSettings(),
     db.report.count({ where: { status: "OPEN" } }),
     db.verification.count({ where: { status: "PENDING" } }),
     db.supportRequest.count({ where: { status: "OPEN", type: "APPEAL" } }),
@@ -203,6 +212,12 @@ export default async function AdminPage() {
       detail: entry.detail || "",
       createdAt: entry.createdAt.toISOString(),
     })),
+    launchSettings: {
+      launchMode: launchSettings.launchMode,
+      headline: launchSettings.headline,
+      subtext: launchSettings.subtext || "",
+      comingSoonImageUrl: launchSettings.comingSoonImageUrl || "",
+    },
     counts: {
       openReports,
       pendingVerifications,

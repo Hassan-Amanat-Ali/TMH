@@ -216,6 +216,17 @@ async function main() {
     });
   }
 
+  await prisma.appSetting.upsert({
+    where: { id: "default" },
+    update: {},
+    create: {
+      id: "default",
+      launchMode: "COMING_SOON",
+      headline: "Thai My Heart is almost ready",
+      subtext: "Invited members can sign in while we prepare the public launch.",
+    },
+  });
+
   // ----- Dynamic location hierarchy for Search 2.0 -----
   const countries = [
     { id: "loc-country-gb", name: "United Kingdom", countryCode: "GB" },

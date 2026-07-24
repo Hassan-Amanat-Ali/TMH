@@ -2062,3 +2062,145 @@ Chosen for **zero egress fees** (critical for a photo/video-heavy dating app), S
 1. Does this close D1 and D2 for the provisioning pack?
 2. Is the production catalog/config set correct, or should demo ads be treated as production config later after owner supplies real ad content?
 3. Should owner run Block 0 only first and paste output before any state-changing Blocks 1-7?
+
+## [Claude Code] Prod-seed hardening (D1/D2) Review — APPROVED — deploy is GO — 2026-07-21
+
+**APPROVED.** Verified `prisma/seed.ts` production mode by tracing the guards:
+- Catalog seeded in BOTH modes (CoinPackage L189, VipPlan L203, PlanSetting L212, ModerationRule L298, Gift L314, LocationNode) — outside the guards.
+- Test member (`member@tmh.com`) is inside `if (!productionSeed)` (L68) → skipped in prod. All 6 demo profiles + photos/reels/wallets/demo ads inside the second guard (L318) → skipped in prod.
+- Hard guard throws if production seed runs with placeholder `admins@tmh.com` or `ChangeMe123` → can't seed junk creds.
+- Pack: Block 1 stores editable `admin_email=admin@thaimyheart.com`; Block 3 `.env` `SEED_MODE="production"` + real `ADMIN_EMAIL`, `TEST_MEMBER_*` removed, runs `SEED_MODE=production npm run db:seed`. lint/tsc/build green.
+- **D1 + D2 CLOSED.** (Codex couldn't live-verify — dev DB connection timed out, likely VPN; not blocking. The real prod-seed result gets checked live in Block 3 output: expect admin present + zero demo users.)
+- Remaining optional/non-blocking: D3 runs-as-root, D5 public repo (demo creds only, not seeded to prod).
+
+**DEPLOY IS GO.** Sequence: owner snapshot → **Block 0 (read-only)** → paste → Claude review → Blocks 1→7 one at a time, confirm-before-each. Claude hands each block; owner runs; Claude verifies output.
+
+## [Claude Code] NEW BATCH + pending TODOs for Codex (Aug 1 soft-launch) — 2026-07-24
+
+Owner wants an **Aug 1 soft launch** behind a Coming-Soon gate, plus two deploy-pack corrections, plus commit/push. Three tasks:
+
+### ▶ TASK 1 — BATCH: Launch Gate / "Coming Soon" mode
+Deploy the site but show only a Coming-Soon page publicly; admin pre-creates members; only those can log in; public signup disabled — until admin flips the site LIVE.
+- **Data:** new singleton **`AppSetting`** (or key-value `SiteSetting`) — `launchMode` enum `COMING_SOON | LIVE` (default `COMING_SOON`), `comingSoonImageUrl` (interim storage: base64/data-URI in DB **or** a persistent path outside the repo — swap to R2 later), optional `headline`/`subtext`. Additive migration (generate + commit).
+- **Gate (`proxy.ts`):** when `COMING_SOON`, any request NOT in {authenticated admin or member, `/login`, `/api/auth/*`, `/admin` + admin APIs, the coming-soon page, `/_next`/static} → serve/redirect to the Coming-Soon page. When `LIVE` → no gating.
+- **Signup disabled in COMING_SOON:** `/signup` page + `/api/auth/profile-account` + email-verification → "not open yet" / redirect. Admin-created users are the only accounts.
+- **Coming-Soon page:** full-screen admin-set image (use owner's design if provided; else clean burgundy/gold placeholder) + a discreet "Members sign in" → `/login`.
+- **Admin section additions (all `requireAdmin` + AdminAction audit):**
+  1. **Launch toggle** COMING_SOON ↔ LIVE.
+  2. **Coming-soon image** upload/set (interim storage per above) — this is the "turn on the image + upload an image" request.
+  3. **Add member(s):** create a member directly — email, password, display name, gender/seeking; set `emailVerified` so they log in without email. Support adding several.
+- **Behavior:** admin login always reachable; admin-created members can log in + use the full site during COMING_SOON; no public signup.
+- **Consequence:** invite-only + admin-set passwords ⇒ **SES not required for Aug 1**. R2 still wanted once invited users upload photos (interim: admin can set photo URLs).
+- **Verify:** lint/tsc/build + DB smoke — COMING_SOON: public sees coming-soon, `/login` works, signup blocked; admin adds member → that member logs in; toggle LIVE → normal site.
+
+### ▶ TASK 2 — Provisioning pack corrections (`docs/TMH-PRODUCTION-PROVISIONING-PACK.md`)
+- App port **3031 → 3003** (Block 4 pm2 + Block 5 Nginx `proxy_pass`), per `docs/TMH-PORTS-AND-SERVICES.md` (tidy sequence after 3000/3001/3002).
+- Correct the DB premise: **no host MySQL/MariaDB server exists** (only iRedMail's MariaDB inside Docker — OFF-LIMITS). Insert **Block 2a: install a dedicated host MariaDB** (`apt install mariadb-server`, enable, localhost-only 127.0.0.1:3306) BEFORE Block 2 (create DB/user). MariaDB = native for our adapter (mysql_native_password no longer required, still harmless).
+
+### ▶ TASK 3 — Commit + push (owner will approve)
+- **`7445769`** (production-safe seed) — Claude-reviewed + APPROVED; safe to push.
+- Also commit the new/updated docs: `TMH-PORTS-AND-SERVICES.md`, updated `TMH-PRODUCTION-PROVISIONING-PACK.md`, board/logs, + the Task-1 code.
+- Push all to `origin/master`.
+
+**Sequencing:** Task 1 (coming-soon) built + Claude-reviewed → Task 2 pack fix → deploy (resume Track 1: MariaDB → DB → app on 3003 → Nginx → HTTPS) → **go live Aug 1 with COMING_SOON on + invited members.** R2/SES follow before opening public signup.
+
+## [Claude Code] Clarification on Launch Gate (owner) — 2026-07-24
+**Explicit behavior for Codex — do not build it any other way:**
+- The Coming-Soon gate blocks **logged-OUT/public visitors only.**
+- Any **logged-IN** user (admin OR an admin-created member) **fully bypasses the gate** and sees the **normal live site** (all member features) even while `launchMode = COMING_SOON`.
+- This is intentional: the owner will create **test/early users** via admin and they must experience the site **as if it's live** for testing — no coming-soon interstitial once authenticated.
+- Same "add member" tool serves both testers and real invited members (identical mechanism).
+- Note: the **public signup flow** itself is only exercisable in `LIVE` mode (signup is disabled under COMING_SOON) — test signup on the dev instance or after flipping LIVE.
+
+## [Codex] Launch Gate + Provisioning Pack Corrections Implemented For Review — 2026-07-24
+
+**Scope completed:** Task 1 Launch Gate / Coming-Soon mode and Task 2 provisioning pack corrections from Claude Prompt 69.
+
+**Files changed/created:**
+- `prisma/schema.prisma`
+- `prisma/migrations/20260724000000_add_launch_settings/migration.sql`
+- `prisma/seed.ts`
+- `lib/prisma/**` generated Prisma client updates, including `models/AppSetting.ts`
+- `lib/server/services/launch-settings.ts`
+- `app/api/launch-state/route.ts`
+- `app/api/admin/launch/route.ts`
+- `app/api/admin/members/route.ts`
+- `app/coming-soon/page.tsx`
+- `app/(admin)/admin/page.tsx`
+- `components/feature/admin/admin-console.tsx`
+- `app/api/auth/email-verification/route.ts`
+- `app/api/auth/profile-account/route.ts`
+- `proxy.ts`
+- `docs/TMH-PRODUCTION-PROVISIONING-PACK.md`
+- `docs/TMH-PORTS-AND-SERVICES.md` remains included from Claude's prior handoff.
+
+**What changed:**
+- Added singleton `AppSetting` with `launchMode`, `comingSoonImageUrl`, `headline`, and `subtext`; seeded default `COMING_SOON` state.
+- Added public `/coming-soon` page with admin-controlled image/text and a member sign-in link.
+- Added `/api/launch-state` for the proxy to read launch mode safely; fallback is `COMING_SOON` if DB/table is unavailable.
+- Updated `proxy.ts` so `COMING_SOON` blocks logged-out/public page visitors only. Any logged-in user bypasses fully and sees the live app. `/login`, reset/forgot-password pages, auth APIs, and static assets remain reachable.
+- Disabled public signup during `COMING_SOON` in both account creation APIs: `/api/auth/email-verification` and `/api/auth/profile-account`.
+- Added Admin Launch tab for mode toggle, coming-soon text/image upload or URL, and repeated invited-member creation.
+- Added admin routes for launch settings and member creation; both require admin and write `AdminAction` audit rows.
+- Admin-created members are `MEMBER`, `ACTIVE`, `emailVerified`, receive a wallet/profile, and can log in without SES.
+- Updated provisioning pack to app port `127.0.0.1:3003`, corrected the no-host-DB premise, inserted Block 2a for dedicated host MariaDB, and changed DB creation to MariaDB-native `CREATE USER ... IDENTIFIED BY`.
+
+**Verification:**
+- `npm.cmd run db:generate` passed.
+- `npm.cmd run lint` passed.
+- `npx.cmd tsc --noEmit` passed.
+- `npm.cmd run build` passed; build lists `/coming-soon`, `/api/launch-state`, `/api/admin/launch`, and `/api/admin/members`.
+- `git diff --check` passed after trimming generated Prisma trailing whitespace.
+
+**Not run / notes:**
+- DB-backed launch smoke was not run because the dev DB was previously timing out during seed/reset attempts. The implementation includes DB-unavailable fallback for launch-state reads, but live DB behavior should be verified after migration on a healthy DB.
+- No commit or push was made in this batch; waiting for Claude review per collaboration loop.
+
+**Review questions for Claude:**
+1. Does the proxy behavior exactly match the owner clarification: logged-out public blocked, logged-in admin/member fully bypassed?
+2. Is the interim DB/data-URI coming-soon image approach acceptable until R2 lands?
+3. Is the admin-created member form sufficient for Aug 1 invited testers/members, or should the next batch add CSV/bulk invite creation?
+4. Are the provisioning pack MariaDB and port `3003` corrections approved before commit/push?
+
+## [Claude Code] Launch Gate + Pack Corrections Review — APPROVED — 2026-07-24
+**APPROVED.** Verified by code-read + independent `tsc` (clean); build green (Codex).
+- **Gate (`proxy.ts`) correct + secure:** keys off `!token` (validated JWT) → logged-out public → `/coming-soon`; any logged-in admin/member **bypasses** to the real site (matches owner's tester requirement); `/login`+forgot/reset+auth APIs+static stay reachable; **fails closed** (COMING_SOON on error → never leaks the site).
+- **Signup blocked server-side:** `/api/auth/profile-account` + `/api/auth/email-verification` both return **403** when not LIVE (via `isPublicSignupOpen`). Defense at API, not just UI.
+- **Admin:** `/api/admin/launch` (toggle+headline/subtext+image) and `/api/admin/members` (create) both `requireAdmin` + AdminAction audited. `createAdminMember` validates email/strong-password/**18+**, bcrypt, `emailVerified` set, dup-check, transactional. Image interim = data-URI/URL ≤~1.5MB in `LONGTEXT`.
+- **Public `/api/launch-state`:** exposes only coming-soon content (mode/headline/subtext/image) — no leak.
+- **Migration additive** (`AppSetting` only). **Pack fixed:** app port **3003**, **Block 2a install host MariaDB**, mail-container MariaDB off-limits.
+
+**Findings (non-blocking):**
+- **[LG-1 · LOW-MED perf]** The gate does a `fetch('/api/launch-state')` (→ DB) on **every logged-out page request** (`no-store`). On the public coming-soon page under traffic that's a DB hit per visitor. **Recommend before go-live:** cache the launch state in-module with a short TTL (~15–30s). Low effort, meaningful load reduction. (700ms timeout + fail-closed keeps it safe meanwhile.)
+- **Needs live DB smoke** (Codex couldn't — dev DB timeout): toggle COMING_SOON→public sees coming-soon, `/login` works, signup 403; admin adds member→member logs in + bypasses; toggle LIVE→normal. Fold into deploy verification.
+
+**▶ Codex: Task 3 — commit + push** (incl. `7445769`, owner approves) + optionally the LG-1 cache. Then **resume deploy** (MariaDB→DB→app 3003→Nginx→HTTPS) → Aug 1 soft launch.
+
+## [Claude Code] Hand deploy guidance to Codex — current position — 2026-07-24
+Owner wants **Codex to guide the deploy** from here (not Claude). Codex: lead the owner through commit/push, then walk the provisioning pack block-by-block. Claude stays reviewer — bring results back for spot-checks (esp. the launch-gate live smoke).
+
+**CURRENT DEPLOY POSITION (do not restart — continue from here):**
+- ✅ Owner advised to take a **VPS snapshot** (confirm done before first state-change).
+- ✅ **Block 0 preflight** already run — server healthy (Ubuntu 22.04.5, 4 CPU / ~13Gi free / 156G disk, Node22/npm/pm2/nginx/certbot present, 8 nginx sites, `tmh` dir free, 3003 free, firewall leaves 3306 closed).
+- ✅ **DB landscape confirmed:** NO host MySQL; other sites use **MongoDB (27017)**; only DB is **iRedMail's MariaDB in Docker — OFF-LIMITS**. ⇒ install a dedicated host MariaDB.
+- ▶ **NEXT after commit/push:** Block 1 (secrets, incl. `admin_email=admin@thaimyheart.com`) → **Block 2a install host MariaDB** → Block 2 (create `thaimyheart` DB + `tmh@localhost`) → Block 3 (clone/env `SEED_MODE=production`/migrate deploy [applies BOTH `20260719000000_init` + `20260724000000_add_launch_settings`]/seed/build) → Block 4 (pm2 `HOSTNAME=127.0.0.1 PORT=3003`) → Block 5 (Nginx vhost) → Block 6 (certbot HTTPS) → Block 7 (backups).
+- **Post-deploy:** site defaults to **COMING_SOON** (AppSetting upserts default on first read). Owner logs into `/admin` (admin@thaimyheart.com + generated pw from `/root/tmh-secrets/admin_password`) → set coming-soon image → add test/invited members → they log in and test the live site. Flip LIVE when opening to public (after R2 + SES).
+- **Reminders for Codex:** confirm-before-each state-changing block; VPN off; keep 3306 private; don't touch other sites / mail container / MongoDB. Optionally ship the **LG-1** launch-state cache before go-live.
+
+## [Codex] Launch Gate Committed + Ready To Push — 2026-07-24
+
+**Scope completed:** Task 3 local commit after Claude approval, including the optional LG-1 short-TTL launch-state cache.
+
+**Commit history now ready to push:**
+- `7445769 fix: add production-safe seed mode`
+- `ae56663 feat: add coming soon launch gate`
+
+**Additional change after Claude review:** added a 20-second in-module cache in `proxy.ts` for the launch mode lookup. It still fails closed to `COMING_SOON`, preserves the 700ms timeout, and only caches `COMING_SOON | LIVE`.
+
+**Verification rerun after cache:**
+- `npm.cmd run lint` passed.
+- `npx.cmd tsc --noEmit` passed.
+- `npm.cmd run build` passed; 48 app routes generated.
+- `git diff --check` passed.
+
+**Next:** push `origin/master`, then continue the owner-run deploy from the already-recorded position: Block 1 → Block 2a → Block 2 → Block 3 → Block 4 → Block 5 → Block 6 → Block 7, with confirmation before each state-changing block.

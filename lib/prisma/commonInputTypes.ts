@@ -586,6 +586,23 @@ export type EnumModActionWithAggregatesFilter<$PrismaModel = never> = {
   _max?: Prisma.NestedEnumModActionFilter<$PrismaModel>
 }
 
+export type EnumLaunchModeFilter<$PrismaModel = never> = {
+  equals?: $Enums.LaunchMode | Prisma.EnumLaunchModeFieldRefInput<$PrismaModel>
+  in?: $Enums.LaunchMode[]
+  notIn?: $Enums.LaunchMode[]
+  not?: Prisma.NestedEnumLaunchModeFilter<$PrismaModel> | $Enums.LaunchMode
+}
+
+export type EnumLaunchModeWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.LaunchMode | Prisma.EnumLaunchModeFieldRefInput<$PrismaModel>
+  in?: $Enums.LaunchMode[]
+  notIn?: $Enums.LaunchMode[]
+  not?: Prisma.NestedEnumLaunchModeWithAggregatesFilter<$PrismaModel> | $Enums.LaunchMode
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumLaunchModeFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumLaunchModeFilter<$PrismaModel>
+}
+
 export type EnumSupportTypeFilter<$PrismaModel = never> = {
   equals?: $Enums.SupportType | Prisma.EnumSupportTypeFieldRefInput<$PrismaModel>
   in?: $Enums.SupportType[]
@@ -1207,6 +1224,23 @@ export type NestedEnumModActionWithAggregatesFilter<$PrismaModel = never> = {
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedEnumModActionFilter<$PrismaModel>
   _max?: Prisma.NestedEnumModActionFilter<$PrismaModel>
+}
+
+export type NestedEnumLaunchModeFilter<$PrismaModel = never> = {
+  equals?: $Enums.LaunchMode | Prisma.EnumLaunchModeFieldRefInput<$PrismaModel>
+  in?: $Enums.LaunchMode[]
+  notIn?: $Enums.LaunchMode[]
+  not?: Prisma.NestedEnumLaunchModeFilter<$PrismaModel> | $Enums.LaunchMode
+}
+
+export type NestedEnumLaunchModeWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.LaunchMode | Prisma.EnumLaunchModeFieldRefInput<$PrismaModel>
+  in?: $Enums.LaunchMode[]
+  notIn?: $Enums.LaunchMode[]
+  not?: Prisma.NestedEnumLaunchModeWithAggregatesFilter<$PrismaModel> | $Enums.LaunchMode
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumLaunchModeFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumLaunchModeFilter<$PrismaModel>
 }
 
 export type NestedEnumSupportTypeFilter<$PrismaModel = never> = {

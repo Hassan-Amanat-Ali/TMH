@@ -80,6 +80,7 @@ export const ModelName = {
   AdImpression: 'AdImpression',
   PlanSetting: 'PlanSetting',
   ModerationRule: 'ModerationRule',
+  AppSetting: 'AppSetting',
   PasswordResetToken: 'PasswordResetToken',
   EmailVerificationCode: 'EmailVerificationCode',
   SupportRequest: 'SupportRequest'
@@ -515,6 +516,18 @@ export const ModerationRuleScalarFieldEnum = {
 export type ModerationRuleScalarFieldEnum = (typeof ModerationRuleScalarFieldEnum)[keyof typeof ModerationRuleScalarFieldEnum]
 
 
+export const AppSettingScalarFieldEnum = {
+  id: 'id',
+  launchMode: 'launchMode',
+  comingSoonImageUrl: 'comingSoonImageUrl',
+  headline: 'headline',
+  subtext: 'subtext',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AppSettingScalarFieldEnum = (typeof AppSettingScalarFieldEnum)[keyof typeof AppSettingScalarFieldEnum]
+
+
 export const PasswordResetTokenScalarFieldEnum = {
   id: 'id',
   token: 'token',
@@ -878,6 +891,16 @@ export const ModerationRuleOrderByRelevanceFieldEnum = {
 } as const
 
 export type ModerationRuleOrderByRelevanceFieldEnum = (typeof ModerationRuleOrderByRelevanceFieldEnum)[keyof typeof ModerationRuleOrderByRelevanceFieldEnum]
+
+
+export const AppSettingOrderByRelevanceFieldEnum = {
+  id: 'id',
+  comingSoonImageUrl: 'comingSoonImageUrl',
+  headline: 'headline',
+  subtext: 'subtext'
+} as const
+
+export type AppSettingOrderByRelevanceFieldEnum = (typeof AppSettingOrderByRelevanceFieldEnum)[keyof typeof AppSettingOrderByRelevanceFieldEnum]
 
 
 export const PasswordResetTokenOrderByRelevanceFieldEnum = {

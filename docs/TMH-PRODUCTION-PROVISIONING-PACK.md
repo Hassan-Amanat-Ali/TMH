@@ -6,14 +6,15 @@ Status: DNS confirmed on 2026-07-21.
 - `www.thaimyheart.com` resolves via CNAME to `thaimyheart.com`, then A `195.110.58.111`.
 - Target VPS: Hostinger shared Ubuntu 22.04 server at `195.110.58.111`.
 - App directory: `/var/www/websites/tmh`
-- App port: `127.0.0.1:3031`
+- App port: `127.0.0.1:3003`
 - Repo: `https://github.com/Hassan-Amanat-Ali/TMH.git`
 
 Important safety rules:
 
 - Run the read-only preflight block first and paste the output for review.
 - Do not alter existing websites, Nginx vhosts, Docker services, MongoDB, global Node, or mail services.
-- Keep MySQL port `3306` private. Do not open it in UFW or Hostinger firewall.
+- Install a dedicated host MariaDB for TMH. The iRedMail MariaDB inside Docker is mail-only and off-limits.
+- Keep MariaDB port `3306` private. Do not open it in UFW or Hostinger firewall.
 - Confirm before each state-changing block on the shared VPS.
 - Do not paste real generated passwords or secrets into chat.
 
@@ -39,7 +40,7 @@ echo
 echo "=== PORTS ==="
 ss -tlnp || true
 echo
-ss -tlnp | grep ':3031' || echo "3031 appears free"
+ss -tlnp | grep ':3003' || echo "3003 appears free"
 ss -tlnp | grep ':3306' || echo "3306 not visible in ss output"
 
 echo
@@ -49,11 +50,11 @@ systemctl status mysql mariadb --no-pager 2>/dev/null | head -60 || true
 
 echo
 echo "=== BINARIES ==="
-which git node npm pm2 nginx certbot mysql mysqldump 2>/dev/null || true
+which git node npm pm2 nginx certbot mariadb mysql mariadb-dump mysqldump 2>/dev/null || true
 node -v 2>/dev/null || true
 npm -v 2>/dev/null || true
 pm2 -v 2>/dev/null || true
-mysql --version 2>/dev/null || true
+mariadb --version 2>/dev/null || mysql --version 2>/dev/null || true
 
 echo
 echo "=== NGINX SITES ==="
@@ -105,9 +106,33 @@ echo "Secret files ready under /root/tmh-secrets."
 echo "Admin email is stored in /root/tmh-secrets/admin_email. Edit that file before Block 3 if you want a different real admin email."
 ```
 
-## Block 2 - Create MySQL Database And Local User
+## Block 2a - Install Dedicated Host MariaDB
 
-Run only after confirmation that MySQL is healthy on this server.
+Run only after Block 1 passes and after confirming the Hostinger snapshot exists.
+
+This VPS currently has no host MySQL/MariaDB service. The only MariaDB found is inside the iRedMail Docker stack and must not be touched. This block installs a dedicated host MariaDB service for TMH, bound to localhost only.
+
+```bash
+set -euo pipefail
+
+apt update
+DEBIAN_FRONTEND=noninteractive apt install -y mariadb-server
+systemctl enable --now mariadb
+
+grep -R "^[[:space:]]*bind-address" /etc/mysql/mariadb.conf.d /etc/mysql/my.cnf 2>/dev/null || true
+install -m 644 /etc/mysql/mariadb.conf.d/50-server.cnf /root/tmh-secrets/50-server.cnf.before-tmh
+sed -i 's/^[#[:space:]]*bind-address[[:space:]]*=.*/bind-address = 127.0.0.1/' /etc/mysql/mariadb.conf.d/50-server.cnf
+grep -q "^[[:space:]]*bind-address[[:space:]]*=" /etc/mysql/mariadb.conf.d/50-server.cnf || printf '\nbind-address = 127.0.0.1\n' >> /etc/mysql/mariadb.conf.d/50-server.cnf
+
+systemctl restart mariadb
+systemctl status mariadb --no-pager | head -40
+ss -tlnp | grep ':3306'
+mariadb -e "SELECT VERSION();"
+```
+
+## Block 2 - Create MariaDB Database And Local User
+
+Run only after Block 2a confirms MariaDB is healthy on this server.
 
 This block is additive: it creates only the `thaimyheart` database and `tmh@localhost` user if missing.
 
@@ -115,15 +140,15 @@ This block is additive: it creates only the `thaimyheart` database and `tmh@loca
 set -euo pipefail
 DB_PASS="$(cat /root/tmh-secrets/db_password)"
 
-mysql <<SQL
+mariadb <<SQL
 CREATE DATABASE IF NOT EXISTS thaimyheart CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS 'tmh'@'localhost' IDENTIFIED WITH mysql_native_password BY '${DB_PASS}';
-ALTER USER 'tmh'@'localhost' IDENTIFIED WITH mysql_native_password BY '${DB_PASS}';
+CREATE USER IF NOT EXISTS 'tmh'@'localhost' IDENTIFIED BY '${DB_PASS}';
+ALTER USER 'tmh'@'localhost' IDENTIFIED BY '${DB_PASS}';
 GRANT ALL PRIVILEGES ON thaimyheart.* TO 'tmh'@'localhost';
 FLUSH PRIVILEGES;
 SQL
 
-mysql -u tmh -p"${DB_PASS}" -e "SELECT DATABASE();" thaimyheart
+mariadb -u tmh -p"${DB_PASS}" -e "SELECT DATABASE();" thaimyheart
 echo "TMH database and local user are ready."
 ```
 
@@ -175,7 +200,7 @@ npm run build
 echo "TMH app installed and built."
 ```
 
-## Block 4 - Start TMH With PM2 On Localhost Port 3031
+## Block 4 - Start TMH With PM2 On Localhost Port 3003
 
 Run only after Block 3 passes.
 
@@ -183,12 +208,12 @@ Run only after Block 3 passes.
 set -euo pipefail
 cd /var/www/websites/tmh
 
-ss -tlnp | grep ':3031' && { echo "Port 3031 is already in use. Stop and ask for review."; exit 1; } || true
+ss -tlnp | grep ':3003' && { echo "Port 3003 is already in use. Stop and ask for review."; exit 1; } || true
 
-HOSTNAME=127.0.0.1 PORT=3031 pm2 start "npm run start" --name tmh
+HOSTNAME=127.0.0.1 PORT=3003 pm2 start "npm run start" --name tmh
 pm2 save
 pm2 list
-curl -I http://127.0.0.1:3031 || true
+curl -I http://127.0.0.1:3003 || true
 ```
 
 If PM2 says startup is not configured, run:
@@ -201,7 +226,7 @@ Then copy and run the exact command PM2 prints.
 
 ## Block 5 - Add Nginx Vhost For thaimyheart.com
 
-Run only after Block 4 returns an HTTP response from `127.0.0.1:3031`.
+Run only after Block 4 returns an HTTP response from `127.0.0.1:3003`.
 
 ```bash
 set -euo pipefail
@@ -215,7 +240,7 @@ server {
     client_max_body_size 25m;
 
     location / {
-        proxy_pass http://127.0.0.1:3031;
+        proxy_pass http://127.0.0.1:3003;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";

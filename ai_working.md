@@ -12,7 +12,7 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 
 ---
 
-**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 65** · **Codex → Prompt 64**
+**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 72** · **Codex → Prompt 70**
 
 ---
 
@@ -827,3 +827,68 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - **Verification:** `npm.cmd run lint` passed; `npx.cmd tsc --noEmit` passed; `npm.cmd run build` passed and generated 44 static pages.
 - **DB verification note:** attempted clean dev DB production-seed verification with `npx.cmd prisma migrate reset --force` and `SEED_MODE=production npm.cmd run db:seed`, but the remote throwaway dev DB connection timed out twice with Prisma `DriverAdapterError` / socket timeout. This appears connectivity-related, not a compile/seed syntax error. Dev DB may need reseed once connectivity returns.
 - **Review next (for Claude):** review production seed mode and updated provisioning pack; decide whether the owner should run only Block 0 first, then paste output before Blocks 1-7.
+
+## Prompt 67 Claude (review — prod-seed D1/D2; DEPLOY GO)
+- **User cue:** `codex updated` — review production seed mode + pack changes.
+- **Verdict: APPROVED — D1/D2 closed. Deployment is GO.** Traced seed.ts guards: catalog seeded both modes; test member (L68) + 6 demo profiles/photos/reels/ads (L318) inside `!productionSeed` guards → skipped in prod; hard guard blocks placeholder admin creds. Pack Block1 admin_email=admin@thaimyheart.com, Block3 SEED_MODE=production + real ADMIN_EMAIL, TEST_MEMBER removed. lint/tsc/build green.
+- **Note:** Codex couldn't live-verify prod seed (dev DB timeout, likely VPN) — not blocking; verify live at Block 3 (admin present + no demo users).
+- **Edited (project code):** none — review only.
+- **▶ Next = OWNER-RUN DEPLOY.** Claude drives: hand Block 0 (read-only) → owner runs + pastes → Claude reviews → Blocks 1-7 one at a time, confirm-before-each. Owner: take VPS snapshot first. (Codex idle during owner-run deploy unless a code fix is needed.)
+- **Reminders:** VPN off for DB/deploy work.
+
+## Prompt 68 Claude (DEPLOY in progress — DB plan course-correction)
+- **Block 0 + DB-locator run (owner-pasted):** server healthy — DNS→VPS ok, 4 CPU/13Gi free/156G disk, port 3031 free, git/Node22/npm/pm2/nginx/certbot present, 8 existing nginx sites, tmh dir free, firewall leaves 3306 closed.
+- **KEY FINDING:** **NO host MySQL/MariaDB server exists.** `mysql` socket error; no mysql/mariadb systemd service; nothing on 3306. Only DB on box = **iRedMail's MariaDB inside Docker** (mail-only, not exposed, DO NOT TOUCH). So the audit's "reuse MySQL 8" was wrong (that was just the client binary).
+- **Course-correction (drove live):** install a **dedicated host MariaDB** for TMH (additive; localhost-only; separate from the mail container). Bonus: MariaDB = native for our adapter, so the `mysql_native_password` workaround is no longer needed (still harmless). Gave owner the `apt install mariadb-server` block after confirming snapshot.
+- **Then:** existing pack Block 2 (create `thaimyheart` DB + `tmh@localhost`) works as-is on MariaDB → Blocks 3–7 unchanged.
+- **▶ Codex TODO (doc sync, non-urgent):** update `docs/TMH-PRODUCTION-PROVISIONING-PACK.md` — insert a "Block 2a: install host MariaDB" step; correct the "reuse existing MySQL 8" premise to "no host DB server; install dedicated MariaDB (mail-container MariaDB is off-limits)."
+- **Edited (project code):** none.
+- **Reminders:** VPN off for DB work; owner-run deploy, Claude verifies each block.
+
+## Prompt 69 Claude (Aug 1 soft-launch plan + Codex handoff)
+- **Owner:** wants Aug 1 soft launch behind a **Coming-Soon gate**; admin pre-creates members; only they can log in; public signup off; admin toggles coming-soon + uploads the image. Admin email confirmed `admin@thaimyheart.com`.
+- **Deploy paused clean** (only read-only blocks ran on VPS; snapshot taken; nothing changed). DB landscape: no host MySQL — others use MongoDB (27017); only DB is iRedMail's MariaDB in Docker (off-limits) → we install a dedicated host MariaDB (3306). App port set to **3003** (tidy). Ports doc: `docs/TMH-PORTS-AND-SERVICES.md`.
+- **Wrote 3 Codex tasks to board:** (1) **Launch Gate / Coming-Soon** feature (AppSetting launchMode + comingSoonImage + admin add-members + proxy gate + signup-disabled); (2) pack corrections (port 3003 + install-MariaDB Block 2a / no-host-DB); (3) commit docs + **push (incl. `7445769`, Claude-approved)** — owner will approve the push.
+- **Key consequence:** invite-only ⇒ **SES not blocking for Aug 1**; R2 still wanted post-launch.
+- **Edited (project code):** none (docs only: ports doc; board/logs).
+- **▶ Codex do next:** Task 1 (coming-soon) → report for Claude review → Task 2 pack fix → commit+push. Owner will approve push of 7445769. Append `## Prompt 70 Codex`.
+- **Open Q for owner:** provide the coming-soon page design, or Codex builds an image-based one.
+- **Reminders:** VPN off for DB work.
+
+## Prompt 70 Codex
+- **User cue:** `claude updated`.
+- **Read first:** latest `TMH/ai_working.md` and `TMH/ai_collaboration.md`, especially Prompt 69 and the owner clarification that the gate blocks logged-out/public visitors only.
+- **Implemented:** Launch Gate / Coming-Soon mode plus provisioning-pack corrections.
+- **Files read:** collaboration logs, `proxy.ts`, signup/auth routes, admin page/console, launch service, Prisma schema/seed, provisioning docs, Next 16 proxy/route-handler docs from local `node_modules`.
+- **Files changed/created:** `prisma/schema.prisma`; `prisma/migrations/20260724000000_add_launch_settings/migration.sql`; `prisma/seed.ts`; generated `lib/prisma/**` including `models/AppSetting.ts`; `lib/server/services/launch-settings.ts`; `app/api/launch-state/route.ts`; `app/api/admin/launch/route.ts`; `app/api/admin/members/route.ts`; `app/coming-soon/page.tsx`; `app/(admin)/admin/page.tsx`; `components/feature/admin/admin-console.tsx`; `app/api/auth/email-verification/route.ts`; `app/api/auth/profile-account/route.ts`; `proxy.ts`; `docs/TMH-PRODUCTION-PROVISIONING-PACK.md`; logs.
+- **Behavior:** public/logged-out visitors redirect to `/coming-soon` while `launchMode=COMING_SOON`; logged-in members/admins bypass and see the normal site; `/login`, forgot/reset password, auth APIs, and static assets stay reachable; public signup APIs return 403 while coming-soon is active.
+- **Admin additions:** Launch tab for COMING_SOON/LIVE toggle, headline/subtext, interim image upload/URL, and repeated invited-member creation with verified member accounts.
+- **Provisioning docs:** app port corrected to `3003`; added dedicated host MariaDB Block 2a; DB/user creation now uses MariaDB-native syntax; iRedMail Docker MariaDB remains explicitly off-limits.
+- **Commands run:** `npm.cmd run db:generate`; `npm.cmd run lint`; `npx.cmd tsc --noEmit`; `npm.cmd run build`; `git diff --check`; git status/diff/spot checks.
+- **Verification results:** Prisma generate passed; lint passed; type-check passed; build passed and lists `/coming-soon`, `/api/launch-state`, `/api/admin/launch`, and `/api/admin/members`; `git diff --check` passed after trimming generated Prisma trailing whitespace.
+- **Not run:** DB-backed smoke for the new launch flow, because the dev DB had prior connectivity timeouts. Live/dev DB verification should be run once the DB is healthy/migrated.
+- **Review next (for Claude):** review `## [Codex] Launch Gate + Provisioning Pack Corrections Implemented For Review - 2026-07-24`; approve or request fixes before commit/push.
+
+## Prompt 71 Claude (review — Launch Gate + pack fixes; APPROVED)
+- **User cue:** `codex updated` — review Launch Gate / Coming-Soon + pack corrections.
+- **Verdict: APPROVED.** Gate correct+secure (logged-out→coming-soon, logged-in bypass, fail-closed, login/auth reachable); signup 403 server-side both endpoints; admin launch-toggle + add-member `requireAdmin`+audited+validated(18+/bcrypt/emailVerified); public launch-state no leak; migration additive; pack fixed (port 3003 + MariaDB Block 2a). Independent tsc clean.
+- **Findings (non-blocking):** LG-1 (Low-Med) middleware fetches `/api/launch-state`→DB per logged-out request → add short-TTL in-module cache before go-live. Needs live DB smoke of the flow (fold into deploy).
+- **Edited (project code):** none — review only.
+- **▶ Codex do next: Task 3 — commit + push** all (incl. `7445769`, owner approves) + optionally LG-1 cache. Then resume deploy. Append `## Prompt 72 Codex`.
+- **Reminders:** VPN off for DB work.
+
+## Prompt 72 Claude (hand deploy guidance to Codex)
+- **Owner:** wants **Codex to guide** the commit/push + deploy from here. Claude stays reviewer.
+- **Recorded current deploy position** on board so Codex continues (not restarts): snapshot advised; Block 0 done; DB landscape confirmed (install host MariaDB; MongoDB is the others'; mail MariaDB off-limits); next = commit/push → Block 1 → 2a(install MariaDB) → 2 → 3(prod seed + both migrations) → 4(pm2 3003) → 5(nginx) → 6(certbot) → 7(backups) → COMING_SOON by default → admin adds members/tests.
+- **Edited (project code):** none.
+- **▶ Codex:** guide owner through Task 3 (commit+push, owner approves incl 7445769) then the deploy blocks, confirm-before-each. Bring launch-gate live smoke + any issues back to Claude. Append `## Prompt 72/73 Codex`.
+
+## Prompt 73 Codex
+- **User cue:** `claude updated`.
+- **Read first:** latest `TMH/ai_working.md` and `TMH/ai_collaboration.md`, especially Claude Prompt 71/72.
+- **Claude verdict consumed:** Launch Gate + pack corrections APPROVED; LG-1 short-TTL launch-state cache recommended before go-live.
+- **Implemented after review:** added a 20-second in-module cache in `proxy.ts` for launch mode lookup; fail-closed behavior and 700ms timeout preserved.
+- **Commands run:** `npm.cmd run lint`; `npx.cmd tsc --noEmit`; `npm.cmd run build`; `git diff --check`; `git status --short`; `git log --oneline -3`; `git add -A`; `git commit -m "feat: add coming soon launch gate"`.
+- **Verification results:** lint passed; type-check passed; build passed with 48 app routes; diff check passed.
+- **Commit result:** local commit `ae56663 feat: add coming soon launch gate` created on top of `7445769 fix: add production-safe seed mode`.
+- **Next:** amend this log entry into `ae56663`, push `origin/master`, then guide owner through deploy blocks one at a time from the recorded current position.

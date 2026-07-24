@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { upsertMemberAccount } from "@/lib/server/accounts";
 import { requestMetaFromHeaders } from "@/lib/server/request-meta";
+import { isPublicSignupOpen } from "@/lib/server/services/launch-settings";
 
 const genderMap = {
   woman: "WOMAN",
@@ -28,6 +29,10 @@ function cleanArray(value: unknown): string[] {
 
 export async function POST(request: Request) {
   try {
+    if (!(await isPublicSignupOpen())) {
+      return NextResponse.json({ ok: false, message: "Thai My Heart is not open for public signup yet." }, { status: 403 });
+    }
+
     const body = await request.json();
     const email = cleanString(body?.email).toLowerCase();
     const userName = cleanString(body?.userName);

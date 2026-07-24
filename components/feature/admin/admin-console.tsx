@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Check, ClipboardCheck, Coins, Eye, Gift, History, LifeBuoy, Search, Shield, SlidersHorizontal, UserCog } from "lucide-react";
+import { AlertTriangle, Check, ClipboardCheck, Coins, Eye, Gift, History, LifeBuoy, Rocket, Search, Shield, SlidersHorizontal, UploadCloud, UserCog, UserPlus } from "lucide-react";
 import { Badge, Card, Input } from "@/components/ui";
 import { cn } from "@/lib/cn";
 
@@ -106,6 +106,13 @@ type AdminModRule = {
   createdAt: string;
 };
 
+type AdminLaunchSettings = {
+  launchMode: "COMING_SOON" | "LIVE";
+  headline: string;
+  subtext: string;
+  comingSoonImageUrl: string;
+};
+
 export type AdminConsoleData = {
   dbAvailable: boolean;
   reports: AdminReport[];
@@ -117,6 +124,7 @@ export type AdminConsoleData = {
   planSettings: AdminPlanSetting[];
   moderationRules: AdminModRule[];
   auditLog: AdminAudit[];
+  launchSettings: AdminLaunchSettings;
   counts: {
     openReports: number;
     pendingVerifications: number;
@@ -126,6 +134,7 @@ export type AdminConsoleData = {
 };
 
 const tabs = [
+  { id: "launch", label: "Launch", icon: Rocket },
   { id: "reports", label: "Reports", icon: AlertTriangle },
   { id: "verifications", label: "Verification", icon: ClipboardCheck },
   { id: "support", label: "Support & Appeals", icon: LifeBuoy },
@@ -144,17 +153,20 @@ function formatDate(value: string) {
 function StatusPill({ value }: { value: string }) {
   const tone = value === "OPEN" || value === "PENDING"
     ? "border-gold bg-gold/15 text-gold-light"
-    : value === "ACTIVE" || value === "APPROVED" || value === "ANSWERED"
+    : value === "ACTIVE" || value === "APPROVED" || value === "ANSWERED" || value === "LIVE"
       ? "border-verified/40 bg-verified/15 text-emerald-100"
+      : value === "COMING_SOON"
+        ? "border-gold/50 bg-gold/15 text-gold-light"
       : "border-danger/40 bg-danger/20 text-rose-100";
   return <span className={cn("inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold", tone)}>{value.replaceAll("_", " ")}</span>;
 }
 
 export function AdminConsole({ data }: { data: AdminConsoleData }) {
   const router = useRouter();
-  const [active, setActive] = useState<TabId>("reports");
+  const [active, setActive] = useState<TabId>("launch");
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState("");
+  const [launchForm, setLaunchForm] = useState(data.launchSettings);
   const [busy, startTransition] = useTransition();
 
   function mutate(url: string, body: Record<string, unknown>) {
@@ -192,6 +204,27 @@ export function AdminConsole({ data }: { data: AdminConsoleData }) {
   }, [data.members, query]);
 
   const flaggedMembers = useMemo(() => data.members.filter((member) => member.ipFlagged || member.vpnSuspected), [data.members]);
+
+  function updateLaunchField<K extends keyof AdminLaunchSettings>(key: K, value: AdminLaunchSettings[K]) {
+    setLaunchForm((current) => ({ ...current, [key]: value }));
+    setMessage("");
+  }
+
+  function readComingSoonImage(file?: File) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setMessage("Choose an image file for the coming-soon page.");
+      return;
+    }
+    if (file.size > 1_500_000) {
+      setMessage("Coming-soon image must be under 1.5 MB until R2 storage is enabled.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => updateLaunchField("comingSoonImageUrl", String(reader.result || ""));
+    reader.onerror = () => setMessage("Unable to read that image.");
+    reader.readAsDataURL(file);
+  }
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-8 text-cream sm:px-6 lg:px-8">
@@ -234,6 +267,82 @@ export function AdminConsole({ data }: { data: AdminConsoleData }) {
       </div>
 
       {message && <div className="mb-5 rounded-2xl border border-gold/20 bg-white/8 px-4 py-3 text-sm font-semibold text-gold-light">{message}</div>}
+
+      {active === "launch" && (
+        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+          <Card className="bg-chrome p-5 text-cream">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="flex items-center gap-2 font-serif text-2xl font-bold text-gold-light"><Rocket className="h-5 w-5" /> Launch Mode</h2>
+                <p className="mt-1 text-sm text-cream/65">Current public state: {data.launchSettings.launchMode === "LIVE" ? "Live" : "Coming soon"}</p>
+              </div>
+              <StatusPill value={launchForm.launchMode} />
+            </div>
+            <form className="grid gap-4" onSubmit={(event) => {
+              event.preventDefault();
+              mutate("/api/admin/launch", launchForm);
+            }}>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button type="button" onClick={() => updateLaunchField("launchMode", "COMING_SOON")} className={cn("min-h-12 rounded-2xl border border-gold/25 px-4 text-sm font-black", launchForm.launchMode === "COMING_SOON" ? "bg-gold text-burgundy-dark" : "bg-white/8 text-gold-light")}>Coming Soon</button>
+                <button type="button" onClick={() => updateLaunchField("launchMode", "LIVE")} className={cn("min-h-12 rounded-2xl border border-gold/25 px-4 text-sm font-black", launchForm.launchMode === "LIVE" ? "bg-gold text-burgundy-dark" : "bg-white/8 text-gold-light")}>Live</button>
+              </div>
+              <Input value={launchForm.headline} onChange={(event) => updateLaunchField("headline", event.target.value)} placeholder="Coming-soon headline" className="bg-chrome-deep text-cream placeholder:text-cream/45" />
+              <textarea value={launchForm.subtext} onChange={(event) => updateLaunchField("subtext", event.target.value)} placeholder="Short supporting text" className="min-h-28 rounded-2xl border border-gold/20 bg-chrome-deep p-4 text-sm text-cream outline-none placeholder:text-cream/45 focus:border-gold focus:ring-2 focus:ring-gold/25" />
+              <label className="flex min-h-20 cursor-pointer items-center justify-center gap-3 rounded-2xl border border-dashed border-gold/35 bg-white/8 px-4 text-sm font-bold text-gold-light">
+                <UploadCloud className="h-5 w-5" />
+                Upload image
+                <input type="file" accept="image/*" className="sr-only" onChange={(event) => readComingSoonImage(event.target.files?.[0])} />
+              </label>
+              <Input value={launchForm.comingSoonImageUrl} onChange={(event) => updateLaunchField("comingSoonImageUrl", event.target.value)} placeholder="Or paste an image URL" className="bg-chrome-deep text-cream placeholder:text-cream/45" />
+              {launchForm.comingSoonImageUrl && <div className="h-48 rounded-2xl border border-gold/15 bg-cover bg-center" style={{ backgroundImage: `url(${launchForm.comingSoonImageUrl})` }} />}
+              <button type="submit" disabled={busy} className="min-h-11 rounded-full bg-gold px-5 text-sm font-black text-burgundy-dark disabled:opacity-50">Save launch settings</button>
+            </form>
+          </Card>
+
+          <Card className="bg-chrome p-5 text-cream">
+            <h2 className="mb-5 flex items-center gap-2 font-serif text-2xl font-bold text-gold-light"><UserPlus className="h-5 w-5" /> Add Invited Member</h2>
+            <form className="grid gap-3" onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              post("/api/admin/members", {
+                email: form.get("email"),
+                password: form.get("password"),
+                displayName: form.get("displayName"),
+                age: Number(form.get("age")),
+                gender: form.get("gender"),
+                seeking: form.get("seeking"),
+                locationText: form.get("locationText"),
+                countryCode: form.get("countryCode"),
+              });
+              event.currentTarget.reset();
+            }}>
+              <Input name="email" type="email" placeholder="Email" required className="bg-chrome-deep text-cream placeholder:text-cream/45" />
+              <Input name="password" type="password" placeholder="Temporary password" required className="bg-chrome-deep text-cream placeholder:text-cream/45" />
+              <Input name="displayName" placeholder="Display name" required className="bg-chrome-deep text-cream placeholder:text-cream/45" />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input name="age" type="number" min={18} defaultValue={30} required className="bg-chrome-deep text-cream placeholder:text-cream/45" />
+                <Input name="countryCode" maxLength={2} placeholder="Country code" className="bg-chrome-deep text-cream placeholder:text-cream/45" />
+              </div>
+              <Input name="locationText" placeholder="City, country" className="bg-chrome-deep text-cream placeholder:text-cream/45" />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <select name="gender" defaultValue="OTHER" className="min-h-11 rounded-2xl border border-gold/20 bg-chrome-deep px-3 text-sm text-cream">
+                  <option value="WOMAN">Woman</option>
+                  <option value="MAN">Man</option>
+                  <option value="LADYBOY">Ladyboy</option>
+                  <option value="OTHER">Other</option>
+                </select>
+                <select name="seeking" defaultValue="OTHER" className="min-h-11 rounded-2xl border border-gold/20 bg-chrome-deep px-3 text-sm text-cream">
+                  <option value="WOMAN">Seeking women</option>
+                  <option value="MAN">Seeking men</option>
+                  <option value="LADYBOY">Seeking ladyboys</option>
+                  <option value="OTHER">Open to other</option>
+                </select>
+              </div>
+              <button type="submit" disabled={busy} className="min-h-11 rounded-full bg-gold px-5 text-sm font-black text-burgundy-dark disabled:opacity-50">Create member</button>
+            </form>
+          </Card>
+        </div>
+      )}
 
       {active === "reports" && (
         <div className="grid gap-4">
