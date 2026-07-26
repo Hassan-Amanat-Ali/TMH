@@ -939,3 +939,25 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - **Next:** run lint/type/build/diff checks, commit/push, then owner-run VPS `git pull`, build, `pm2 restart tmh --update-env`, and live login smoke.
 - **Verification completed:** `npm.cmd run lint` passed; `npx.cmd tsc --noEmit` passed; `npm.cmd run build` passed with 48 app routes; `git diff --check` passed.
 - **Ready to commit/push:** secure-cookie middleware fix plus admin nav polish. VPS update after push: `git pull origin master`, `npm run build`, `pm2 restart tmh --update-env`, then live login/navigation smoke.
+
+## Prompt 79 Codex
+- **User cue:** approved push: `Yes, push secure-cookie fix to origin/master`.
+- **Action completed:** pushed `26548db fix: read secure auth cookie in proxy` to `origin/master`.
+- **Next VPS steps:** owner to run `git pull origin master`, `npm run build`, `pm2 restart tmh --update-env`, then live login/navigation smoke. Log each checkpoint as it completes.
+- **VPS checkpoint:** owner ran `cd /var/www/websites/tmh && git pull origin master`; VPS fast-forwarded `118f763..26548db` and pulled secure-cookie middleware fix plus admin-nav polish successfully.
+- **Next VPS step:** run `npm run build` in `/var/www/websites/tmh`.
+- **VPS checkpoint:** owner ran `npm run build` after pulling `26548db`; production build passed with 48 app routes and Proxy/Middleware listed.
+- **Next VPS step:** run `pm2 restart tmh --update-env`.
+- **VPS checkpoint:** owner ran `pm2 restart tmh --update-env`; PM2 restarted only `tmh` and it is online (id 3, new pid 1852335). PM2 version warning noted, not blocking.
+- **Next VPS/live smoke:** check HTTPS `/`, `/login`, and authenticated navigation after owner logs in.
+- **Live smoke checkpoint:** VPS `curl -I https://thaimyheart.com` returned `307 -> /coming-soon`; `curl -I https://thaimyheart.com/login` returned `200 OK`. Public unauthenticated gate and login route still healthy after `26548db`.
+- **Next owner browser smoke:** log in at `https://thaimyheart.com/login`, then try `/dashboard`, `/admin`, and `/api/auth/session`.
+- **Live smoke blocker:** owner logged in, then after ~20 seconds saw Next error page: `This page couldn't load. A server error occurred. ERROR 3493967639`. During that state, protected navigation still would not switch to dashboard/admin/session pages. Need PM2 logs around this digest before more code changes.
+- **Next diagnostic:** owner to run `pm2 logs tmh --lines 160 --nostream` on VPS and paste output. Also run `pm2 env 3 | grep -i NEXTAUTH` to verify runtime env.
+- **Live diagnostic result:** PM2 logs for digest `3493967639` show Prisma `DriverAdapterError` / MariaDB `(no: 1040) Too many connections`, pool timeout after 10s. This explains the Next server error page. `pm2 env 3 | grep -i NEXTAUTH` returned no output, so PM2-managed env does not list NEXTAUTH variables, although Next may still load `.env`. Need DB connection/processlist checks before changing DB limits.
+- **Next VPS diagnostics:** check MariaDB max/user connections and processlist; then apply minimal fix (likely set PM2 env explicitly and tune MariaDB max_connections / app DB connection limit) after results.
+- **MariaDB diagnostic result:** `max_connections=151`, `Threads_connected=152`, `Max_used_connections=152`; processlist shows many `tmh@localhost` sleeping connections to `thaimyheart` around 584s old. Root cause: TMH exhausted host MariaDB connections with sleeping app connections, causing Prisma pool timeout and Next digest `3493967639`.
+- **Next action:** inspect Prisma client setup and apply minimal connection-pool fix; likely add a low `connection_limit` to `DATABASE_URL` and restart PM2 to drop sleeping connections, plus set PM2 env explicitly if needed.
+- **Code root cause found and patched:** `lib/server/prisma.ts` only cached the Prisma client in `global.__tmhPrisma` when `NODE_ENV !== "production"`; in production every Prisma proxy access created a new client/adapter pool, causing 152 sleeping MariaDB connections and `Too many connections`. Patched to cache the singleton in production too.
+- **Current batch now includes:** secure-cookie middleware fix, admin-nav polish, and production Prisma singleton fix.
+- **Next:** rerun lint/type/build/diff, commit/push, VPS pull/build/restart, then verify MariaDB connection count drops and live login/navigation works.

@@ -2350,3 +2350,27 @@ const token = await getToken({
 - `git diff --check` passed.
 
 **Next:** commit and push, then owner runs on VPS: `git pull origin master`, `npm run build`, `pm2 restart tmh --update-env`, and retests live login/navigation.
+
+## [Codex] Production Prisma Connection Leak Fix Implemented — 2026-07-26
+
+**Scope completed:** fixed the live MariaDB `Too many connections` crash discovered during smoke testing.
+
+**Evidence:**
+- Next error digest `3493967639` mapped to Prisma/MariaDB pool timeout in PM2 logs.
+- MariaDB diagnostics showed `max_connections=151`, `Threads_connected=152`, `Max_used_connections=152`.
+- Processlist showed many sleeping `tmh@localhost` connections to `thaimyheart`.
+
+**Root cause:**
+- `lib/server/prisma.ts` cached the Prisma client only when `NODE_ENV !== "production"`.
+- In production, every proxy access to `prisma` could create a new `PrismaClient` + MariaDB adapter pool, leaking sleeping DB connections until MariaDB refused new connections.
+
+**Fix:**
+- `getOrCreatePrismaClient()` now stores `global.__tmhPrisma = client` in production too, so each Node process reuses one Prisma client/adapter pool.
+
+**Verification:**
+- `npm.cmd run lint` passed.
+- `npx.cmd tsc --noEmit` passed.
+- `npm.cmd run build` passed; 48 app routes generated.
+- `git diff --check` passed.
+
+**Next:** commit/push, VPS pull/build/restart, then verify `Threads_connected` falls back to a small number and live login/navigation works without the server error.

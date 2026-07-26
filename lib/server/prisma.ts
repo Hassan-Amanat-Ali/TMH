@@ -21,9 +21,7 @@ function getOrCreatePrismaClient(): PrismaClient {
   }
 
   const client = createPrismaClient();
-  if (process.env.NODE_ENV !== "production") {
-    global.__tmhPrisma = client;
-  }
+  global.__tmhPrisma = client;
   return client;
 }
 
