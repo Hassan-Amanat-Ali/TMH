@@ -12,7 +12,7 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 
 ---
 
-**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 74** · **Codex → Prompt 73**
+**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 77** · **Codex → Prompt 76**
 
 ---
 
@@ -909,3 +909,33 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - **Commands run:** `npm.cmd run lint`; `npx.cmd tsc --noEmit`; `npm.cmd run build`; `git diff --check`.
 - **Verification results:** lint passed; type-check passed; build passed with 48 app routes; diff check passed.
 - **Next:** commit + push hotfix, pull/rebuild/restart on VPS, smoke `/login`, then continue DNS/HTTPS deploy.
+
+## Prompt 76 Codex
+- **User cue:** owner is moving things to Claude and asked whether collaboration files were updated.
+- **Deploy progress completed on VPS:** pushed `118f763 fix: render login form during coming soon`; VPS pulled `118f763`; rebuilt successfully; restarted PM2 `tmh`; MariaDB installed/enabled/running on `127.0.0.1:3306`; DB/user created and verified; both migrations applied; production seed verified (`admin@thaimyheart.com`, `COMING_SOON`, demo users `0`); PM2 app online on `127.0.0.1:3003`; Nginx vhost enabled; DNS fixed with A `195.110.58.111` and AAAA `2a02:4780:f:a146::1`; HTTPS certbot succeeded; public `/` redirects to `/coming-soon`; public `/login` returns `200 OK`; admin password reset and DB-verified with `passwordVerified: true`.
+- **Current blocker:** owner reports login appears to accept/sign in but remains on sign-in page and navigation does not work except create account.
+- **Next diagnostic for Claude/Codex:** run `pm2 logs tmh --lines 120 --nostream`; inspect browser Network for `/api/auth/callback/credentials`; check `/api/auth/session` after login attempt; inspect browser Console for JS errors; resolve login/session smoke before continuing backup block.
+- **Files edited:** `ai_collaboration.md`, `ai_working.md`.
+
+## Prompt 77 Claude (live login/session bug — diagnosis plan)
+- **Deploy DONE** (Codex Prompt 76): thaimyheart.com live behind coming-soon, HTTPS, MariaDB 3306, app 3003, prod seed clean (admin@thaimyheart.com, 0 demo users). 🎉
+- **New bug:** login accepts but stays on sign-in page; nav dead except create-account. Std NextAuth v4 JWT, no custom cookies, `pages.signIn:"/"`. Behind Nginx HTTPS proxy.
+- **Diagnosis plan (data before code):** Owner browser: `/api/auth/session` (user vs {}) + F12 Console errors. Codex VPS: `pm2 logs tmh`, and **check `NEXTAUTH_URL` is in the PM2 process env** (prime suspect — pm2 may have started without `.env` loaded → cookie/URL detection breaks).
+- **Likely fixes:** ensure NEXTAUTH_URL in pm2 env (`pm2 restart tmh --update-env`); or client hydration/JS crash; or explicit cookie config. Minimal fix once data is in.
+- **Edited (project code):** none — diagnosis only.
+- **▶ Codex:** pull pm2 logs + verify NEXTAUTH_URL in runtime env; report. Owner: run the 2 browser checks. Append `## Prompt 78 Codex`.
+
+## Prompt 77b Claude (local E2E = code correct; live bug = prod config)
+- Ran local dev server (localhost:3000, dev DB migrated). **Login works fully locally** (session→admin). `/`→coming-soon, `/login`→form. ⇒ code correct; live bug is production HTTPS-proxy/secure-cookie config.
+- **Fix for Codex (VPS):** (1) verify `NEXTAUTH_URL=https://thaimyheart.com` in PM2 env (`pm2 restart tmh --update-env`); (2) `proxy.ts:94` getToken → add `secureCookie: NEXTAUTH_URL.startsWith('https://')` so middleware reads the `__Secure-` cookie; (3) restart + owner re-test live `/api/auth/session`.
+- Owner testing locally now (admins@tmh.com/ChangeMe123). Dev server bg id b3abx016z.
+- **▶ Codex:** apply live config fix + verify. Append `## Prompt 78 Codex`.
+
+## Prompt 78 Codex
+- **User cue:** `claude updated`.
+- **Read first:** latest `TMH/ai_working.md` and `TMH/ai_collaboration.md`, especially Prompt 77/77b and live-login root cause entry.
+- **In progress:** applied middleware secure-cookie fix in `proxy.ts` so `getToken` reads `__Secure-next-auth.session-token` on HTTPS. Also added admin-only `/admin` links to desktop header, drawer, and mobile bottom bar.
+- **Files edited so far:** `proxy.ts`, `components/layout/site-header.tsx`, `components/layout/mobile-tab-bar.tsx`, `next-env.d.ts` restored from `.next/dev/types` back to `.next/types`, `ai_working.md`.
+- **Next:** run lint/type/build/diff checks, commit/push, then owner-run VPS `git pull`, build, `pm2 restart tmh --update-env`, and live login smoke.
+- **Verification completed:** `npm.cmd run lint` passed; `npx.cmd tsc --noEmit` passed; `npm.cmd run build` passed with 48 app routes; `git diff --check` passed.
+- **Ready to commit/push:** secure-cookie middleware fix plus admin nav polish. VPS update after push: `git pull origin master`, `npm run build`, `pm2 restart tmh --update-env`, then live login/navigation smoke.

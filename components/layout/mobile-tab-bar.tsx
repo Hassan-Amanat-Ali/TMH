@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Heart, Home, MessageCircle, Search, User } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { Heart, Home, MessageCircle, Search, ShieldCheck, User } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const tabs = [
@@ -15,10 +16,15 @@ const tabs = [
 
 export function MobileTabBar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const visibleTabs = session?.user?.isAdmin
+    ? [...tabs.slice(0, 4), { label: "Admin", href: "/admin", icon: ShieldCheck }]
+    : tabs;
+
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-gold/25 bg-chrome px-2 pb-2 pt-1 text-cream shadow-soft lg:hidden">
       <div className="grid grid-cols-5 gap-1">
-        {tabs.map((tab) => {
+        {visibleTabs.map((tab) => {
           const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
           const Icon = tab.icon;
           return (

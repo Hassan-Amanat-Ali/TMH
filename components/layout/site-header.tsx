@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Bell, Crown, Menu, MoreVertical, Wallet } from "lucide-react";
+import { Bell, Crown, Menu, MoreVertical, ShieldCheck, Wallet } from "lucide-react";
 import { Avatar, Button, Drawer } from "@/components/ui";
 import { useLocale } from "@/components/providers/locale-provider";
 import { BrandMark } from "./brand-mark";
@@ -30,9 +30,10 @@ export function SiteHeader() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unread, setUnread] = useState(0);
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const { copy } = useLocale();
   const isSignedIn = status === "authenticated";
+  const isAdmin = Boolean(session?.user?.isAdmin);
   const navLabels: Record<string, string> = {
     Dashboard: copy.nav.dashboard,
     Search: copy.nav.search,
@@ -62,6 +63,11 @@ export function SiteHeader() {
                 {navLabels[label] || label}
               </Link>
             ))}
+            {isAdmin && (
+              <Link href="/admin" className="rounded-full px-4 py-2 text-sm font-semibold text-gold-light hover:bg-white/10 hover:text-gold-light">
+                Admin
+              </Link>
+            )}
           </nav>
         ) : (
           <nav className="hidden items-center gap-1 lg:flex">
@@ -92,6 +98,11 @@ export function SiteHeader() {
               <Link href="/vip" className="hidden items-center gap-2 rounded-full border border-gold/35 bg-gold/10 px-3 py-2 text-sm font-bold text-gold-light sm:inline-flex">
                 <Crown className="h-4 w-4" /> VIP
               </Link>
+              {isAdmin && (
+                <Link href="/admin" className="hidden items-center gap-2 rounded-full border border-gold/35 bg-white/10 px-3 py-2 text-sm font-bold text-gold-light sm:inline-flex">
+                  <ShieldCheck className="h-4 w-4" /> Admin
+                </Link>
+              )}
               <Link href="/vip#wallet" className="hidden items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-sm font-bold sm:inline-flex">
                 <Wallet className="h-4 w-4" /> 0
               </Link>
@@ -128,6 +139,11 @@ export function SiteHeader() {
       </div>
       {isSignedIn && <Drawer open={drawerOpen} title="More" onClose={() => setDrawerOpen(false)}>
         <div className="grid gap-2">
+          {isAdmin && (
+            <Link href="/admin" onClick={() => setDrawerOpen(false)} className="rounded-2xl border border-gold/30 bg-gold/10 px-4 py-3 text-sm font-semibold text-gold-light hover:bg-gold/15">
+              Admin
+            </Link>
+          )}
           {moreLinks.map(([label, href]) => (
             <Link key={href} href={href} onClick={() => setDrawerOpen(false)} className="rounded-2xl border border-gold/15 bg-white/5 px-4 py-3 text-sm font-semibold text-cream hover:bg-white/10">
               {label}

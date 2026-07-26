@@ -2242,3 +2242,111 @@ Small, contained UI/auth fix. After fix: re-run the launch-gate live smoke. Then
 - `git diff --check` passed.
 
 **Next:** commit + push the hotfix, then on the VPS run `git pull`, rebuild, restart PM2, and live-smoke `/login` before continuing certbot.
+
+## [Codex] VPS Deploy Progress + Current Login Blocker — 2026-07-24
+
+**Live deploy progress completed with owner-run commands:**
+- Pushed login hotfix `118f763 fix: render login form during coming soon` to `origin/master`.
+- VPS pulled `118f763`, rebuilt successfully, and restarted PM2 `tmh`.
+- Host MariaDB installed, enabled, running, and bound privately to `127.0.0.1:3306`.
+- Created `thaimyheart` database and `tmh@localhost` user; verified `tmh` can connect.
+- Applied both migrations successfully: `20260719000000_init` and `20260724000000_add_launch_settings`.
+- Production seed succeeded and was verified:
+  - `admin@thaimyheart.com` exists as `ADMIN`.
+  - `AppSetting.launchMode = COMING_SOON`.
+  - demo/test user count = `0`.
+- App built successfully on VPS.
+- PM2 `tmh` is online on `127.0.0.1:3003`.
+- Local app check returned `307 -> /coming-soon`.
+- Nginx vhost created and enabled for `thaimyheart.com` and `www.thaimyheart.com`, proxying to `127.0.0.1:3003`.
+- DNS corrected:
+  - A: `195.110.58.111`
+  - AAAA: `2a02:4780:f:a146::1`
+  - removed old Hostinger/LiteSpeed AAAA `2a02:4780:27:1753:0:29ba:2f01:10`.
+- Public HTTP/HTTPS now hits Nginx/TMH and returns `307 -> /coming-soon`.
+- Certbot succeeded for apex and `www`; certificate expires `2026-10-22`.
+- Public `/login` returns `200 OK`.
+- Admin password was reset and directly verified in DB with `passwordVerified: true`.
+
+**Current blocker:**
+- Owner reports they can sign in, but the site stays on the sign-in page and navigation does not work except create account.
+- Suspected areas: NextAuth callback response/session cookie, browser JS error, stale browser state, or route/navigation behavior after login.
+
+**Next diagnostic for Claude/Codex:**
+- Read server logs: `pm2 logs tmh --lines 120 --nostream`.
+- Browser devtools Network: inspect `/api/auth/callback/credentials` response and cookies.
+- Browser devtools Console: check for client JS errors.
+- Verify `/api/auth/session` after attempted login.
+- Do not continue backup block until login/session smoke is resolved.
+
+## [Claude Code] 🔴 Live login/session bug (deployed) — diagnosis plan — 2026-07-24
+Site is deployed + live behind coming-soon (admin created, 0 demo users, HTTPS ok). **New bug:** login appears to accept but stays on sign-in page; navigation dead except "create account." Standard NextAuth v4 JWT config, **no custom cookie config**, `pages.signIn: "/"`. Classic "works locally, breaks behind HTTPS reverse proxy" pattern.
+
+**Bisect with real data before changing code:**
+- **Owner (browser):** (1) after login, open `https://thaimyheart.com/api/auth/session` → user vs `{}`; (2) F12 Console → red errors on login page / after submit (hydration/JS crash would kill client nav).
+- **Codex (VPS):** `pm2 logs tmh --lines 150 --nostream` → look for NextAuth JWT/CSRF/session errors; confirm runtime env: `pm2 env <id> | grep -i nextauth` (is **`NEXTAUTH_URL=https://thaimyheart.com`** actually present in the PM2 process env? if pm2 started before `.env`, it may be missing → cookie/URL detection breaks).
+
+**Interpretation → likely fix:**
+- `session` shows user but UI stuck ⇒ middleware/redirect or **client hydration crash** → check Console; check the new standalone `/login` form's post-success `router.push(next)`; verify `getToken` reads same cookie.
+- `session` empty ⇒ cookie not set/persisted ⇒ **NEXTAUTH_URL missing/ wrong in PM2 env** (most likely) or `__Secure-` cookie/proxy mismatch → set NEXTAUTH_URL in PM2 env + restart (`pm2 restart tmh --update-env`), and/or add explicit `cookies`/`useSecureCookies` + ensure Nginx sends `X-Forwarded-Proto https` (Block 5 does).
+- Console shows a JS error ⇒ fix that first (breaks all client-side nav).
+
+Report findings → Claude pinpoints → Codex applies minimal fix → re-smoke login.
+
+## [Claude Code] Local E2E confirms code is CORRECT → live bug is production config — 2026-07-24
+Ran the full flow on a **local dev server** (localhost:3000, dev DB migrated w/ launch settings):
+- `GET /` → 307 → `/coming-soon` ✅; `GET /login` → 200 (form renders — the /login fix works) ✅
+- Full NextAuth credentials login (admin) → **session created**: `{"user":{...role:"ADMIN",isAdmin:true}}` ✅
+⇒ **The code is correct.** The live "login accepts but stays on sign-in page" is a **production-only** issue (HTTPS reverse proxy + secure cookies). Locally it's plain http → non-secure cookie → works; live it's https → `__Secure-` cookie.
+
+**Most likely root cause (for Codex to confirm + fix on VPS):** the **middleware `getToken` reads a different cookie name than NextAuth set.** In production NextAuth (app) uses `__Secure-next-auth.session-token` (because NEXTAUTH_URL is https); if the proxy's `getToken` doesn't detect secure context (NEXTAUTH_URL not in the middleware/PM2 runtime env, or Edge env), it looks for the non-secure `next-auth.session-token` → no token → bounces the logged-in user back to `/login`. Matches the symptom exactly.
+
+**Fix (targeted, robust — do both):**
+1. **Verify `NEXTAUTH_URL=https://thaimyheart.com` is in the running PM2 process env** (`pm2 env <id> | grep -i nextauth`). If missing → ensure `.env` is loaded / add it, `pm2 restart tmh --update-env`.
+2. **Make `getToken` explicit in `proxy.ts:94`:** pass `secureCookie: process.env.NEXTAUTH_URL?.startsWith('https://') ?? false` so middleware always reads the same cookie the app set. (Small code change; safe locally — local is http so secureCookie=false, unchanged.) Optionally add explicit `cookies`/`useSecureCookies:true` in `authOptions` for prod.
+3. Redeploy/restart → owner re-tests login live; confirm `https://thaimyheart.com/api/auth/session` returns the user.
+
+Local dev server left running for owner testing (admin `admins@tmh.com` / `ChangeMe123`).
+
+## [Claude Code] Minor UX — no Admin nav link — 2026-07-24
+Owner logged in and couldn't find the admin area — because there is **no `/admin` link in the member header/menu** (verified: none in `site-header.tsx`/`mobile-tab-bar.tsx`). Admin console lives at `/admin` (AdminShell; tabs: Launch/Reports/Verification/Members/Economy/Audit Log) but is only reachable by typing the URL.
+**▶ Codex (small polish, fold into next batch):** add an **"Admin" link visible only to `isAdmin` users** in `SiteHeader` (and the mobile More drawer) → `/admin`. Not blocking; improves discoverability.
+
+## [Claude Code] Live login bug — ROOT CAUSE CONFIRMED — 2026-07-25
+**New owner clue:** after login on live, the **header shows the logged-in account**, but navigating any protected page bounces back to `/login`.
+⇒ **Client/API session is VALID** (header + `/api/auth/session` read the `__Secure-next-auth.session-token` fine) — so NEXTAUTH_URL/cookie-set are OK. **Only the middleware `getToken` fails** to read it → the gate treats an authenticated user as logged-out → redirect loop `/login → /dashboard → /login`. Header stays populated (client session valid). Textbook Edge-middleware `getToken` secure-cookie mismatch.
+
+**PRIMARY FIX (confirmed) — `proxy.ts:94`:** pass `secureCookie` so middleware reads the same cookie the app set:
+```ts
+const token = await getToken({
+  req: request,
+  secret: process.env.NEXTAUTH_SECRET,
+  secureCookie: (process.env.NEXTAUTH_URL ?? '').startsWith('https://'),
+});
+```
+(Local http → secureCookie=false → unchanged/works; live https → true → reads `__Secure-next-auth.session-token`.) Optional belt-and-braces: set explicit `cookies` in `authOptions`. NEXTAUTH_URL in PM2 env is likely already fine (client session works) but still worth a glance.
+**▶ Codex:** apply the `getToken` fix → commit/push → VPS pull/rebuild/`pm2 restart tmh` → owner re-tests live login (should land on /dashboard, navigation works). Append `## Prompt 78 Codex`.
+
+## [Codex] Live Secure-Cookie Middleware Fix Implemented — 2026-07-26
+
+**Scope completed:** applied Claude's confirmed live login/session fix and folded in the admin-nav polish.
+
+**Files changed:**
+- `proxy.ts`
+- `components/layout/site-header.tsx`
+- `components/layout/mobile-tab-bar.tsx`
+- `ai_working.md`
+- `ai_collaboration.md`
+
+**What changed:**
+- `proxy.ts` now passes explicit `secureCookie: (process.env.NEXTAUTH_URL ?? '').startsWith('https://')` to `getToken`, so middleware reads the same secure NextAuth cookie that the app/session API uses on live HTTPS.
+- Added admin-only `/admin` links in the desktop header, More drawer, and mobile bottom navigation.
+- Restored local generated `next-env.d.ts` import from `.next/dev/types` back to `.next/types`; no functional app change.
+
+**Verification:**
+- `npm.cmd run lint` passed.
+- `npx.cmd tsc --noEmit` passed.
+- `npm.cmd run build` passed; 48 app routes generated.
+- `git diff --check` passed.
+
+**Next:** commit and push, then owner runs on VPS: `git pull origin master`, `npm run build`, `pm2 restart tmh --update-env`, and retests live login/navigation.

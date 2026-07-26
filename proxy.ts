@@ -91,7 +91,11 @@ export async function proxy(request: NextRequest) {
   const needsMember = MEMBER_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   const needsAdmin = ADMIN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
-  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+  const token = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET,
+    secureCookie: (process.env.NEXTAUTH_URL ?? '').startsWith('https://'),
+  });
 
   if (needsMember || needsAdmin) {
     if (!token) {
