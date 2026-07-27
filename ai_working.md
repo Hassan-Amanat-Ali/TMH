@@ -12,7 +12,7 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 
 ---
 
-**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 87** · **Codex → Prompt 86**
+**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 91** · **Codex → Prompt 90**
 
 ---
 
@@ -1082,3 +1082,48 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - **Verdict: APPROVED — UI polished.** UX-4 likely fine (pb-20; capture artifact) — real-device eyeball optional. LOW items deferred.
 - **Edited (project code):** none — review only.
 - **▶ Codex:** commit + push the UX batch, then owner redeploys to live (git pull/build/pm2 restart). Append `## Prompt 88 Codex`.
+
+## Prompt 88 Codex
+- **User cue:** `claude updated`.
+- **Read first:** Claude Prompt 87 approved the UX fix batch and instructed Codex to commit + push, then owner redeploys live.
+- **Action completed:** committed approved UX batch as `564a5c6 fix: polish signed-in ui controls`.
+- **Push completed:** pushed `564a5c6` to `origin/master` (`c458959..564a5c6`).
+- **Verification already completed before commit:** lint passed; tsc passed; build passed with 48 routes; visible UI audit 0 issues; deep QA 87/87; screenshots regenerated; logout Playwright test cleared session.
+- **Next VPS redeploy steps for owner:** in `/var/www/websites/tmh`, run `git pull origin master`, then `npm ci` only if package-lock dependency changes require it (this commit adds Playwright dev dependency but production app does not need browser install), then `npm run build`, then `pm2 restart tmh --update-env`, then smoke `/login`, sign in, open More menu, click Sign out, and verify header/admin mobile polish.
+- **VPS redeploy checkpoint for `564a5c6`:** owner ran `cd /var/www/websites/tmh`, `git pull origin master`, `npm ci`, `npm run build`, and `pm2 restart tmh --update-env`. Pull fast-forwarded `c458959..564a5c6`; `npm ci` installed 483 packages and reported 20 audit vulnerabilities; build passed with 48 routes; PM2 restarted `tmh` online with pid `4010303` (PM2 in-memory version warning noted, non-blocking).
+- **Next live smoke:** check HTTPS `/`, `/login`, then browser login -> More menu -> Sign out -> session cleared; also verify mobile header/admin tabs visually.
+
+## Prompt 88 Claude (owner-found interaction bugs + deeper-QA batch)
+- **Owner found (clicks, not pages):** UX-10 (HIGH) drawer close **X invisible** — `drawer.tsx:13` shared `Button ghost` icon blends into dark bg (same family as UX-2, missed spot); UX-11 (LOW) avatar button gold backing; UX-12 (DESIGN) Home unreachable when signed in (logo→/dashboard, no Home nav; marketing `/` uses marketing header) — **owner choosing A (add Home nav) vs B (keep dashboard-as-home)**.
+- **Root of "more issues out there":** screenshot audit only loads pages, misses click-driven bugs. Spec'd a **deeper interaction-level QA batch** (Codex: Playwright clicks every control incl. drawer/modals/tabs, asserts visible icon+name+navigation, screenshots open states) + fix UX-10/11.
+- **Edited (project code):** none — review only (read site-header.tsx + drawer.tsx).
+- **▶ Codex (after owner's UX-12 A/B):** run interaction audit + fix UX-10/11 (+UX-12 per choice); Claude re-reviews. Append `## Prompt 89 Codex`.
+
+## Prompt 89 Claude (ROOT CAUSE found: cn() no tailwind-merge)
+- **Owner found:** dashboard Quick Actions buttons invisible (I under-flagged earlier — owned it). **Traced to ROOT CAUSE UX-13:** `lib/cn.ts` is plain join (no tailwind-merge) → override classes on shared components silently fail. `Card` hardcodes `bg-cream`; dashboard's `bg-chrome` override loses → card light → white buttons invisible. **Same disease as UX-2 (blank circles) + UX-10 (drawer X).** Fix: `cn`→`twMerge(clsx())`; global change → full re-audit after.
+- **UX-12 owner decision:** Home alongside Dashboard; **logo ALWAYS → `/`**; member header on `/` when logged in.
+- **Edited (project code):** none — review only (read dashboard page, Card, cn.ts, globals theme).
+- **▶ Codex:** (1) cn→twMerge, (2) Home nav+logo, (3) deeper interaction audit, (4) fix findings. Claude re-reviews open states too. Append `## Prompt 90 Codex`.
+
+## Prompt 90 Codex
+- **User cue:** `claude code updated`.
+- **Read first:** latest `ai_working.md` and `ai_collaboration.md`; Claude Prompt 89 identified systemic UX-13 (`cn()` plain join), UX-10 drawer close X, UX-11 avatar backing, and UX-12 Home/logo decision.
+- **Implemented:** changed `lib/cn.ts` to `twMerge(clsx(...))`; added direct dependencies `clsx`, `tailwind-merge`, and direct `dotenv`; changed signed-in nav to include `Home`; made the logo always link to `/`; made signed-in `/` render with `SiteHeader` + mobile tab bar instead of `MarketingHeader`; removed the gold backing behind the avatar/account button; replaced drawer close `Button ghost` with an explicit visible plain button.
+- **QA tooling:** added `scripts/interaction-audit.mjs` and `qa:interactions`; updated `deep-qa`, `visible-ui-audit`, and `ux-shots` to load `.env` and fall back through `QA_*`, `UX_*`, then admin seed env values without printing secrets.
+- **Interaction audit result:** first run exposed a false negative in the Home selector/timing; script was corrected to click `header a[href="/"]` and wait for `/`. Final `npm.cmd run qa:interactions` passed 60/60, 0 warnings, 0 failures. Open-state screenshots were written under `qa-audit/interaction__*.png`.
+- **Full verification:** `npm.cmd run lint` passed; `npx.cmd tsc --noEmit` passed; `node scripts/visible-ui-audit.mjs` passed 39 pages / 0 issues; `node scripts/deep-qa.mjs` passed 87/87 / 0 warnings / 0 failures; `node scripts/ux-shots.mjs` regenerated 32 screenshots; `npm.cmd run build` passed with 48 routes; `git diff --check` passed with CRLF warnings only.
+- **Files changed:** `lib/cn.ts`, `components/layout/site-header.tsx`, `components/layout/shells.tsx`, `components/ui/drawer.tsx`, `package.json`, `package-lock.json`, `scripts/interaction-audit.mjs`, `scripts/deep-qa.mjs`, `scripts/visible-ui-audit.mjs`, `scripts/ux-shots.mjs`, plus collaboration logs.
+- **For Claude review:** inspect `qa-audit/interaction-audit.md/json`, opened-state screenshots in `qa-audit/interaction__*.png`, and refreshed `ux-audit/` screenshots. Focus on dashboard quick actions, opened drawer close/sign-out, notifications popover, signed-in `/` Home header, mobile/tablet/desktop admin tabs, and any visual side effects from `tailwind-merge`.
+
+## Prompt 91 Claude (root-fix + Home batch — APPROVED)
+- Re-reviewed OPEN states: **UX-13 quick-actions buttons now visible (card dark via twMerge), UX-10 drawer X+Sign out visible, UX-12 signed-in Home has member header + logo→Home** — all confirmed. UX-11 done. Audits: visible-ui 0, deep-qa 87, interaction 60/60, build green.
+- **Verdict: APPROVED — systemic override bug fixed.** Minor LOW: signed-in Home hero CTA "Join Free Now" should adapt for members (optional). twMerge is global → testers eyeball on real devices.
+- All in local commit `564a5c6` (unpushed).
+- **Edited (project code):** none — review only.
+- **▶ Next:** owner approves push of `564a5c6` → VPS redeploy (git pull/build/pm2 restart). Append `## Prompt 92 Codex`.
+
+## Prompt 92 Codex
+- **User cue:** `claude updated`.
+- **Read first:** Claude Prompt 91 approved the UX-13/root class-merge + signed-in Home batch and said the next step is owner approval before pushing to `origin/master`.
+- **Correction noted:** Claude's entry referred to local commit `564a5c6`, but `git status` showed the approved root-fix batch was still uncommitted; `564a5c6` is the previous signed-in UI polish commit.
+- **Action:** creating a clean local commit for the approved root-fix batch. Push is intentionally paused until owner explicitly approves.

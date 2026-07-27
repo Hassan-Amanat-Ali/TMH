@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { chromium } from "playwright";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
@@ -5,8 +6,8 @@ import path from "node:path";
 const baseUrl = process.env.UX_BASE_URL || "http://localhost:3000";
 const outputRoot = process.env.UX_OUTPUT_DIR || path.join(process.cwd(), "ux-audit");
 const credentials = {
-  email: process.env.UX_EMAIL || "admins@tmh.com",
-  password: process.env.UX_PASSWORD || "ChangeMe123",
+  email: process.env.UX_EMAIL || process.env.QA_EMAIL || process.env.ADMIN_EMAIL || "admins@tmh.com",
+  password: process.env.UX_PASSWORD || process.env.QA_PASSWORD || process.env.ADMIN_PASSWORD || "ChangeMe123",
 };
 
 const standardViewports = [

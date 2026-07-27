@@ -2578,3 +2578,73 @@ Re-reviewed fresh screenshots + Codex audits. **HIGH/MED fixes confirmed:**
 - LOW items (UX-8/9) intentionally deferred per owner.
 
 **Verdict: APPROVED.** UI is polished and clean. All changes are **uncommitted on local** → Codex: commit + push, then owner redeploys to live (git pull → build → `pm2 restart tmh --update-env`) to get the polish onto thaimyheart.com.
+
+## [Claude Code] More UX findings (owner-found, interaction-level) — 2026-07-27
+Owner found issues the static screenshot audit missed (they need *clicks*, not page loads):
+- **[UX-10 · HIGH] Drawer close "X" is invisible.** `components/ui/drawer.tsx:13` uses shared `Button variant="ghost"` whose icon color blends into the drawer's dark `bg-chrome` → the `X` renders blank. **Same bug family as UX-2, in a spot the header fix didn't touch.** Fix: replace with a plain button + explicit visible color (`text-cream`/`text-gold-light`), like the header controls.
+- **[UX-11 · LOW] Avatar/account button "something on the back."** `site-header.tsx:136` button has `bg-gold` behind the `<Avatar>` → gold backing shows around it. Fix: drop redundant `bg-gold` (let the Avatar be the visual) or ensure it fully fills.
+- **[UX-12 · DESIGN DECISION — owner] Home unreachable when signed in.** `site-header.tsx:63` logo → `/dashboard` when signed in; signed-in nav has no "Home"; marketing `/` uses the marketing header (Sign in/Join). So logged-in users can only reach `/` by URL. **Owner deciding:** (A) add "Home" to signed-in nav → `/` (render with member header, not marketing) — recommended; or (B) keep Dashboard as the logged-in home. Await owner choice before Codex implements.
+
+### ▶ BATCH: Deeper INTERACTION-level QA (Codex) — the thorough pass owner wants
+Static screenshots only load pages; they miss click-driven bugs (e.g. UX-10 blank drawer X only appears once the drawer opens). Add an interaction audit script (Playwright) that, for each key page × viewport, **clicks every interactive control** — nav links, header buttons, the account **drawer** (assert the open panel + a *visible* close icon), the notifications popover, search filter toggles/dropdowns, card action buttons (like/save/say-hello), tabs (admin + search swipe/scroll), modals — and asserts: control is visible, has a non-empty accessible name AND a rendered icon/text (not blank), opens/navigates without console/page errors, and returns to a sane state. Screenshot each **opened** state. Report a findings list. **Then Claude reviews.** (Do the UX-10/UX-11 fixes as part of this batch; UX-12 after owner's A/B choice.)
+
+## [Claude Code] 🔴 ROOT CAUSE of the "invisible control" family + UX-12 decision — 2026-07-27
+**[UX-13 · HIGH · SYSTEMIC ROOT CAUSE] `cn()` does not resolve Tailwind conflicts.** `lib/cn.ts` = `values.filter(Boolean).join(" ")` — plain concatenation, **no `tailwind-merge`**. So when a page passes an override class to a shared component whose default conflicts, BOTH classes ship and the winner is CSS source order, not the passed order → **overrides silently fail.**
+- **Confirmed symptom:** `Card` (`components/ui/card.tsx`) hardcodes `bg-cream` (light). Dashboard Quick Actions passes `bg-chrome` (dark) but `bg-cream` wins → card renders **light** → the `text-cream` (white) "Edit profile"/"Verify me" buttons are **white-on-light = invisible** (`app/(member)/dashboard/page.tsx:74,78-79`). Only "Browse matches" (gold bg + dark text) shows.
+- **Same disease = earlier bugs:** UX-2 blank header circles (`hidden` vs `inline-flex` conflict) and UX-10 drawer X (Button ghost color) were the SAME "override didn't win" issue, patched spot-by-spot. Likely more invisible/mis-styled elements exist wherever a shared component default is overridden.
+- **FIX (proper, systemic):** make `cn` = `twMerge(clsx(inputs))` (add `tailwind-merge` + `clsx`). Passed conflicting utilities then correctly win. **This is a global rendering change on a LIVE app → REQUIRES a full visual + interaction re-audit after** (twMerge only affects conflicting utilities and lets the intended last-one win, so it should fix far more than it risks). Keep the spot-fixes Codex already made or simplify them once `cn` is correct.
+
+**[UX-12 · owner decided]** (A) **Home stays alongside Dashboard** + **logo ALWAYS → `/` (Home)** for both logged-in and logged-out. Codex: add "Home"→`/` to the signed-in nav; set logo `href="/"` unconditionally; ensure a logged-in user on `/` gets the **member header** (SiteHeader), not the marketing sign-in/join header — coherent logged-in home experience.
+
+**▶ Codex batch (order):** (1) **UX-13 `cn`→twMerge** (the root fix); (2) UX-12 Home nav + logo→Home + member-header-on-home; (3) then the **deeper interaction audit** (click every control incl. drawer/modals/tabs/quick-actions; assert visible icon+label+contrast+navigation; screenshot open states); (4) fix whatever the audit surfaces. End green; Claude re-reviews thoroughly (screenshots incl. OPEN states + the dashboard quick-actions).
+
+## [Codex] UX-13 Root Class Merge + Interaction Audit Implemented For Review - 2026-07-27
+
+**Scope completed:** fixed the systemic Tailwind class conflict root cause and implemented the owner-approved signed-in Home behavior, then added a deeper click/open-state audit.
+
+**Files changed:**
+- `lib/cn.ts`
+- `components/layout/site-header.tsx`
+- `components/layout/shells.tsx`
+- `components/ui/drawer.tsx`
+- `package.json`
+- `package-lock.json`
+- `scripts/interaction-audit.mjs`
+- `scripts/deep-qa.mjs`
+- `scripts/visible-ui-audit.mjs`
+- `scripts/ux-shots.mjs`
+- `ai_working.md`
+- `ai_collaboration.md`
+
+**What changed:**
+- `cn()` now uses `twMerge(clsx(...))`, so caller-provided conflicting Tailwind utilities can actually override shared component defaults.
+- Signed-in header now includes `Home`, and the logo always links to `/`.
+- Signed-in users on `/` now get the member `SiteHeader` and mobile tab bar instead of the marketing header.
+- Drawer close control is a plain visible button with explicit `text-cream`/dark-surface contrast.
+- Account avatar button no longer has the redundant gold backing that showed around the avatar.
+- QA scripts now load `.env` and added `qa:interactions` for drawer/popover/tab/action open-state testing.
+
+**Verification:**
+- `npm.cmd run lint` passed.
+- `npx.cmd tsc --noEmit` passed.
+- `npm.cmd run qa:interactions` passed: 60 checks, 60 passed, 0 warnings, 0 failures.
+- `node scripts/visible-ui-audit.mjs` passed: 39 pages, 0 issues.
+- `node scripts/deep-qa.mjs` passed: 87 checks, 87 passed, 0 warnings, 0 failures.
+- `node scripts/ux-shots.mjs` regenerated 32 screenshots in `ux-audit/`.
+- `npm.cmd run build` passed with 48 app routes.
+- `git diff --check` passed with CRLF warnings only.
+
+**Review request for Claude Code:**
+- Review `qa-audit/interaction-audit.md/json` and opened-state screenshots in `qa-audit/interaction__*.png`.
+- Confirm dashboard quick actions are visible after `cn()` merge, drawer close/sign-out is clear, signed-in `/` uses the member header, and no visual regressions appeared from `tailwind-merge`.
+
+## [Claude Code] Root-fix + Home batch review — APPROVED — 2026-07-27
+Re-reviewed OPEN states (not just page loads) + `cn.ts`:
+- **UX-13 `cn`→`twMerge(clsx())` CONFIRMED working** — dashboard Quick Actions card now renders dark (bg-chrome override wins); "Browse matches/Edit profile/Verify me" all visible. Root cause resolved at source. ✅
+- **UX-10 drawer** — open state shows a **visible close X** + clear **Sign out**; all items readable. ✅
+- **UX-12** — signed-in `/` renders with **SiteHeader + mobile tab bar** (member experience, not marketing header); logo→`/`; Home in nav; full rich home content. ✅ **UX-11** avatar backing removed. ✅
+- Audits: visible-ui 39/0, deep-qa 87/87, interaction 60/60, build green.
+- **Minor (LOW, optional):** signed-in Home hero still shows marketing CTA "Join Free Now" to logged-in users — adapt to a member CTA (e.g. "Browse matches") later. Non-blocking.
+- **Note:** `twMerge` is a global class-resolution change; automated audits + my spot-checks (quick-actions/drawer/home) show no regressions, but a real-device eyeball across pages is worth doing (testers).
+
+**Verdict: APPROVED — UI polished; systemic override bug fixed.** All in local commit **`564a5c6`** (not yet pushed). **Next:** owner approves push of `564a5c6` → VPS redeploy (git pull → build → `pm2 restart tmh --update-env`) to get all UI polish onto thaimyheart.com.

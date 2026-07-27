@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { chromium } from "playwright";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -5,8 +6,8 @@ import path from "node:path";
 const baseUrl = process.env.QA_BASE_URL || "http://localhost:3000";
 const outputRoot = process.env.QA_OUTPUT_DIR || path.join(process.cwd(), "qa-audit");
 const credentials = {
-  email: process.env.QA_EMAIL || process.env.UX_EMAIL || "admins@tmh.com",
-  password: process.env.QA_PASSWORD || process.env.UX_PASSWORD || "ChangeMe123",
+  email: process.env.QA_EMAIL || process.env.UX_EMAIL || process.env.ADMIN_EMAIL || "admins@tmh.com",
+  password: process.env.QA_PASSWORD || process.env.UX_PASSWORD || process.env.ADMIN_PASSWORD || "ChangeMe123",
 };
 
 const viewports = [

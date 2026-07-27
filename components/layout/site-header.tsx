@@ -9,6 +9,7 @@ import { useLocale } from "@/components/providers/locale-provider";
 import { BrandMark } from "./brand-mark";
 
 const nav = [
+  ["Home", "/"],
   ["Dashboard", "/dashboard"],
   ["Search", "/search"],
   ["Reels", "/reels"],
@@ -36,6 +37,7 @@ export function SiteHeader() {
   const isAdmin = Boolean(session?.user?.isAdmin);
   const memberName = session?.user?.name || session?.user?.email || "Member";
   const navLabels: Record<string, string> = {
+    Home: copy.nav.home,
     Dashboard: copy.nav.dashboard,
     Search: copy.nav.search,
     Reels: copy.nav.reels,
@@ -60,7 +62,7 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-gold/20 bg-chrome text-cream shadow-soft">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-4 py-4 sm:px-6 lg:px-8">
-        <Link href={isSignedIn ? "/dashboard" : "/"} aria-label="Thai My Heart">
+        <Link href="/" aria-label="Thai My Heart home">
           <BrandMark />
         </Link>
         {isSignedIn ? (
@@ -133,7 +135,7 @@ export function SiteHeader() {
                   </div>
                 )}
               </div>
-              <button type="button" className="hidden h-10 w-10 place-items-center rounded-full border border-gold/25 bg-gold text-burgundy-dark shadow-sm transition hover:bg-gold-light sm:grid" onClick={() => setDrawerOpen(true)} aria-label="Open account menu">
+              <button type="button" className="hidden h-10 w-10 place-items-center rounded-full border border-gold/25 bg-white/10 text-cream shadow-sm transition hover:bg-white/15 sm:grid" onClick={() => setDrawerOpen(true)} aria-label="Open account menu">
                 <Avatar name={memberName} className="h-10 w-10" />
               </button>
               <button type="button" className="grid h-10 w-10 place-items-center rounded-full border border-gold/25 bg-white/10 text-cream transition hover:bg-white/15 lg:hidden" onClick={() => setDrawerOpen(true)} aria-label="Open more menu">
