@@ -14,7 +14,7 @@ export default async function DashboardPage() {
     <div className="bg-cream-100">
       <section className="bg-chrome text-cream">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-gold-light">แดชบอร์ด · Dashboard</p>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-gold-light">Dashboard</p>
           <div className="mt-3 grid gap-6 lg:grid-cols-[1fr_340px] lg:items-end">
             <div>
               <h1 className="font-serif text-5xl font-bold text-gold-light">Welcome back, {data.profile.displayName || data.profile.name}</h1>
@@ -49,7 +49,7 @@ export default async function DashboardPage() {
             <Card className="bg-white p-6">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-gold">กิจกรรม · Activity</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-gold">Activity</p>
                   <h2 className="mt-1 font-serif text-3xl font-bold text-burgundy">Notifications feed</h2>
                 </div>
                 <Bell className="text-burgundy" />
@@ -64,7 +64,7 @@ export default async function DashboardPage() {
                     </span>
                     <span className="ml-auto text-xs font-bold text-mauve">{item.createdAt}</span>
                   </Link>
-                )) : <p className="rounded-3xl bg-cream-100 p-5 text-mauve-dark">ยังไม่มีกิจกรรมใหม่ · No activity yet. Search and profile visits will appear here.</p>}
+                )) : <p className="rounded-3xl bg-cream-100 p-5 text-mauve-dark">No activity yet. Search and profile visits will appear here.</p>}
               </div>
             </Card>
           </div>

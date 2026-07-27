@@ -67,7 +67,7 @@ export function ProfileEditor({ profile }: { profile: MemberProfileForm }) {
   return (
     <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[1fr_340px] lg:px-8">
       <Card className="bg-white p-6 md:p-8">
-        <p className="text-xs font-bold uppercase tracking-[0.22em] text-gold">โปรไฟล์ของฉัน · My profile</p>
+        <p className="text-xs font-bold uppercase tracking-[0.22em] text-gold">My profile</p>
         <h1 className="mt-2 font-serif text-4xl font-bold text-burgundy-dark">Edit your dating profile</h1>
         <form onSubmit={saveProfile} className="mt-6 grid gap-4">
           {message && <Toast tone="success">{message}</Toast>}
@@ -100,7 +100,7 @@ export function ProfileEditor({ profile }: { profile: MemberProfileForm }) {
           <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/15">
             <div className="h-full rounded-full bg-gold" style={{ width: `${Math.min(100, form.completion)}%` }} />
           </div>
-          <p className="mt-4 text-sm leading-6 text-cream-200">ครบถ้วนและจริงใจ โปรไฟล์จะน่าเชื่อถือขึ้นเมื่อมีรูป ข้อมูล และการยืนยันตัวตน.</p>
+          <p className="mt-4 text-sm leading-6 text-cream-200">Complete, honest profiles build trust when they include photos, details, and verification.</p>
         </Card>
         <Card className="bg-white p-6">
           <h2 className="font-serif text-2xl font-bold text-burgundy">Account settings</h2>

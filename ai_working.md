@@ -12,7 +12,7 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 
 ---
 
-**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 77** · **Codex → Prompt 76**
+**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 87** · **Codex → Prompt 86**
 
 ---
 
@@ -961,3 +961,124 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - **Code root cause found and patched:** `lib/server/prisma.ts` only cached the Prisma client in `global.__tmhPrisma` when `NODE_ENV !== "production"`; in production every Prisma proxy access created a new client/adapter pool, causing 152 sleeping MariaDB connections and `Too many connections`. Patched to cache the singleton in production too.
 - **Current batch now includes:** secure-cookie middleware fix, admin-nav polish, and production Prisma singleton fix.
 - **Next:** rerun lint/type/build/diff, commit/push, VPS pull/build/restart, then verify MariaDB connection count drops and live login/navigation works.
+
+## Prompt 80 Codex
+- **User cue:** approved push: `Yes, push Prisma production fix to origin/master`.
+- **Action completed:** pushed `c458959 fix: reuse prisma client in production` to `origin/master`.
+- **Why:** live PM2 logs showed Next digest `3493967639` caused by MariaDB `Too many connections`; MariaDB processlist had 152 sleeping `tmh` connections. Code fix reuses one Prisma client/adapter pool in production instead of creating a new pool per access.
+- **Next VPS steps:** owner to run `git pull origin master`, `npm run build`, `pm2 restart tmh --update-env`, then verify MariaDB connection count and live login/navigation.
+- **VPS checkpoint:** owner reported `cd /var/www/websites/tmh && git pull origin master` is done for `c458959` Prisma production fix. Output was not pasted, so exact fast-forward lines not recorded.
+- **Next VPS step:** run `npm run build` in `/var/www/websites/tmh` before restarting PM2.
+- **VPS checkpoint:** owner reported `npm run build` is done after pulling `c458959`. Output was not pasted, so exact build route list not recorded.
+- **Next VPS step:** run `pm2 restart tmh --update-env` to load the new build/env and close old Prisma/MariaDB pools.
+- **VPS checkpoint:** owner ran `pm2 restart tmh --update-env`; TMH restarted successfully and is online with pid `1884707`. This should have closed old Prisma/MariaDB pools from the previous process.
+- **Next verification:** check MariaDB `Threads_connected` and `tmh` processlist to confirm sleeping connections dropped.
+- **DB verification checkpoint:** after deploying `c458959` and restarting PM2, MariaDB `Threads_connected` dropped from `152` to `11`. `Max_used_connections` still shows historical high `152` as expected. Processlist still shows 10 sleeping `tmh` connections with old TIME values; connection exhaustion is resolved, but old/current sleeping pool rows should be monitored or optionally killed before retest.
+- **Owner decision:** owner wants remaining sleeping `tmh` MariaDB connections cleaned before browser retest. Plan: briefly stop PM2 `tmh`, kill only `tmh@localhost` sleeping connections for DB `thaimyheart`, verify count, then restart `tmh --update-env`.
+- **Cleanup checkpoint:** owner ran `pm2 stop tmh`; only TMH stopped (id 3, status stopped), other PM2 apps remained online.
+- **Next cleanup step:** kill only sleeping MariaDB processlist rows where `USER='tmh'`, `DB='thaimyheart'`, `COMMAND='Sleep'`.
+- **Cleanup checkpoint:** owner ran targeted MariaDB kill pipeline for sleeping `tmh` connections on `thaimyheart`; no output reported, expected for success.
+- **Next cleanup verification:** check `Threads_connected` and `tmh` processlist before restarting TMH.
+- **Cleanup verification:** with TMH stopped, MariaDB `Threads_connected=1` and no `tmh` processlist rows were returned. Sleeping TMH DB connections are cleaned.
+- **Next cleanup step:** restart TMH with `pm2 restart tmh --update-env` and verify connection count stays low.
+- **Cleanup restart checkpoint:** owner ran `pm2 restart tmh --update-env`; TMH is online again with pid `3126784` after DB connection cleanup.
+- **Next verification:** check MariaDB `Threads_connected` and current `tmh` processlist after restart, then browser login/navigation smoke.
+- **Post-restart DB verification:** after restarting TMH with fixed Prisma singleton, MariaDB `Threads_connected=1` and no `tmh` processlist rows were returned. Connection leak cleanup successful; ready for live browser smoke.
+- **Live browser smoke checkpoint:** owner opened `/api/auth/session` after login and it returns admin session: `admin@thaimyheart.com`, role `ADMIN`, status `ACTIVE`, `isAdmin:true`, expires `2026-08-25T14:52:11.828Z`. Session cookie/auth is now valid on live.
+- **Next smoke:** confirm `/dashboard` and `/admin` pages load in browser without redirect/server error.
+- **Live browser smoke checkpoint:** owner confirmed both `https://thaimyheart.com/dashboard` and `https://thaimyheart.com/admin` load successfully after admin login. Login/session/middleware/DB-connection blockers are resolved.
+- **Next deploy step:** proceed to Block 7 database backup setup after final PM2/log/connection check.
+- **Pre-backup health checkpoint:** `pm2 status tmh` shows TMH online (pid 3126784, uptime ~4m, mem ~60.9mb). MariaDB `Threads_connected=11` after live browsing, stable and far below prior 152 exhaustion. Proceeding to Block 7 backup setup.
+- **Backup checkpoint:** owner created `/root/.tmh-my.cnf` for TMH DB backups; permissions verified `-rw-------`, root-owned, size 112 bytes. No secrets pasted.
+- **Next backup step:** create `/var/backups/tmh` and run first manual compressed DB backup.
+- **Backup warning checkpoint:** first manual `mariadb-dump` created `/var/backups/tmh/tmh-2026-07-26.sql.gz` (6.8K), but emitted warnings because `/root/.tmh-my.cnf` included `database=thaimyheart`; `mariadb-dump` treats `database` as an error-prone prefix for `--databases`. Need verify backup contents, then remove `database=` from config and rerun backup warning-free.
+- **Backup config correction:** owner rewrote `/root/.tmh-my.cnf` without `database=thaimyheart`; permissions verified `-rw-------`, size 91 bytes. This avoids `mariadb-dump` misreading `database` as `--databases`.
+- **Next backup step:** rerun compressed backup with database name supplied only as command argument.
+- **Backup verification checkpoint:** owner reran manual compressed DB backup after removing `database=` from `/root/.tmh-my.cnf`. Created `/var/backups/tmh/tmh-2026-07-26-1505.sql.gz` (6.8K); `gzip -t` returned `Backup gzip is valid`; `zcat | head -20` showed MariaDB dump header for `Database: thaimyheart` and table `Ad`. Clean backup is valid and warning-free.
+- **Next backup step:** add nightly cron backup with 14-day retention, then verify `crontab -l`.
+- **Backup cron checkpoint:** owner installed root crontab for nightly TMH DB backup at `7 3 * * *`. Cron command dumps `thaimyheart` using `/root/.tmh-my.cnf`, writes `/var/backups/tmh/tmh-$(date +%F).sql.gz`, and deletes `*.sql.gz` older than 14 days. `crontab -l` confirmed the line is present.
+- **Next backup verification:** document restore command and optionally run a non-destructive SQL list/count check from the latest backup.
+- **Backup directory checkpoint:** `/var/backups/tmh` contains two DB backup archives: `tmh-2026-07-26-1505.sql.gz` (clean warning-free manual backup) and `tmh-2026-07-26.sql.gz` (earlier backup created before config cleanup). Both are 6.8K. Current useful backup is the timestamped `1505` file.
+- **Owner question:** asked what a cron line is; explain cron as Linux scheduled tasks and this line as the nightly DB backup schedule.
+- **Owner prompt:** asked `okay whats next` after backup files and cron line were confirmed.
+- **Recommended next step:** verify the cron scheduler service is active on the VPS before relying on nightly backups.
+- **Cron service verification:** owner ran `systemctl status cron --no-pager | head -20`; cron is `enabled` and `active (running)` since `Tue 2026-07-07 10:28:30 UTC`. Logs show recent root cron sessions, so nightly TMH backup schedule can run.
+- **Next backup step:** record/verify restore procedure so backups are recoverable, not just created.
+- **Backup content verification:** owner ran non-destructive `zcat ... | grep -E "CREATE TABLE|INSERT INTO" | head -20` against `/var/backups/tmh/tmh-2026-07-26-1505.sql.gz`. Output showed table DDL (`Ad`, `AdImpression`, `AdminAction`, `AppSetting`, etc.) and seed/data inserts for `AppSetting`, `CoinPackage`, `Gift`, and `LocationNode`. Backup contains schema and data; no restore was performed.
+- **Next step:** add/update production docs with backup location, cron schedule, retention, verification, and restore command, then commit/push docs/log updates if owner approves.
+
+## Prompt 81 Claude (review — live fixes; SITE LIVE & WORKING)
+- **Verified + APPROVED** all post-deploy fixes: secure-cookie proxy (26548db), **Prisma prod singleton (c458959 — the connection-leak root cause; conns 152→11)**, admin nav links, nightly backups. Site LIVE at thaimyheart.com behind coming-soon; login/session/dashboard/admin all confirmed working; DB stable.
+- **Remaining for public open:** R2 (uploads) + SES (email). Aug-1 soft launch (coming-soon + invited members) essentially ready → owner uploads image + adds members in /admin.
+- **Edited (project code):** none — review only.
+- **▶ Codex:** document backup/restore in provisioning pack + commit/push docs+logs. Append `## Prompt 82 Codex`.
+
+## Prompt 82 Claude (spec UX-audit screenshot harness for Codex)
+- **Owner:** proceed with AI UI/UX audit. Corrected me — capture setup is Codex's; Claude reviews.
+- **Spec'd for Codex:** Playwright screenshot harness → local `localhost:3000` (dev DB has demo content; VPN off), log in admins@tmh.com/ChangeMe123, capture key pages at mobile 390 + desktop 1440 (+tablet 820 for heavy layouts), save to `ux-audit/` (gitignored), report folder path.
+- **Then Claude:** read screenshots → prioritized UI/UX findings (responsiveness/visual/design-fidelity) → Codex fixes → re-verify.
+- **Edited (project code):** none. Local dev server still running (bg) for Codex to shoot against.
+- **▶ Codex:** build + run the harness, report the output path. Append `## Prompt 83 Codex`.
+
+## Prompt 83 Codex
+- **User cue:** `claude updated`; Claude asked Codex to build/run a Playwright UX screenshot harness for local `http://localhost:3000` and save screenshots for Claude review.
+- **Read first:** latest `ai_working.md` Prompt 82 and latest `ai_collaboration.md` UI/UX audit batch.
+- **Initial findings:** Playwright is not listed in `package.json` and `node_modules/.bin/playwright.cmd` is absent. `.gitignore` does not yet ignore `ux-audit/`. Login form uses email/password inputs without placeholder/name, so harness should target input types and submit button text.
+- **Plan:** add `scripts/ux-shots.mjs`, ignore `ux-audit/`, install/use Playwright Chromium if needed, run against local server, capture requested pages/viewports, and report output folder.
+- **Implemented:** added Playwright screenshot harness in `scripts/ux-shots.mjs`; added `ux-audit/` to `.gitignore`; installed `playwright` as a dev dependency and downloaded Chromium browser.
+- **Command run:** `node scripts/ux-shots.mjs` against `http://localhost:3000` using `admins@tmh.com` local admin credentials from Claude's spec.
+- **Capture result:** 32 full-page PNG screenshots saved to `E:\Projects\ThaiMyHeart-master\TMH\ux-audit`.
+- **Pages captured:** `/coming-soon`, `/login`, `/dashboard`, `/search`, one resolved `/profiles/[id]`, `/messages`, `/my-profile`, `/reels`, `/vip`, `/likes`, `/visitors`, `/admin`, and admin Launch tab.
+- **Viewports:** mobile 390x844 and desktop 1440x900 for all pages; tablet 820x1180 for search, profile-detail, messages, my-profile, admin, and admin-launch.
+- **Verification:** screenshot file listing showed 32 PNG files with nonzero sizes; `git diff --check` passed with only CRLF normalization warnings; `npm.cmd run lint` passed.
+- **Files changed:** `.gitignore`, `package.json`, `package-lock.json`, `scripts/ux-shots.mjs`, `ai_working.md`; `ai_collaboration.md` also updated for handoff. Generated images are ignored and should not be committed.
+- **For Claude review:** inspect screenshots in `E:\Projects\ThaiMyHeart-master\TMH\ux-audit` and write prioritized UI/UX findings.
+- **Owner question:** asked whether Codex found UI/UX/functionality issues in the captured screenshots. Codex is now doing a first-pass screenshot inspection instead of only handing off to Claude.
+- **Codex first-pass UI/UX findings from screenshots:** no page-load failures in the captured run, but visual issues exist. Highest priority: mobile bottom tab bar overlays page content on search/messages/profile-detail and reduces usable space; admin tab strip overflows/truncates on mobile; floating circular `N` widget appears across public/member pages and overlaps/competes with footer/content; mobile search cards/action buttons are cramped; some empty states feel oversized/underfilled; public login footer starts abruptly and is overlapped by floating widget. Functional button behavior was not exhaustively tested beyond login/session/navigation/screenshot page loads.
+
+## Prompt 84 Codex
+- **User request:** `test everything deeply. Search it to perfection.`
+- **Scope chosen:** deep local QA pass against `http://localhost:3000`, covering route loads, auth redirects, valid/invalid login, safe nav/button interactions, console/page/request errors, horizontal overflow, mobile fixed-bottom-nav spacing, and UI issue screenshots. Avoid destructive submits such as account delete, banning users, and flipping production launch state.
+- **Starting state:** previous screenshot harness and Playwright dependency are already present/uncommitted from Prompt 83; `ux-audit/` is ignored. Current local server responds on `/login`.
+- **Deep QA tooling added:** `scripts/deep-qa.mjs`; `qa-audit/` added to `.gitignore`.
+- **Deep QA command:** `node scripts/deep-qa.mjs` against local `http://localhost:3000`.
+- **First run:** failed at session timing; patched login helper to poll `/api/auth/session`.
+- **Refined run result:** 100 checks total: 87 passed, 0 warnings, 13 automated layout failures. Report saved to `E:\Projects\ThaiMyHeart-master\TMH\qa-audit\deep-qa-report.md` and JSON to `qa-audit\deep-qa-report.json`.
+- **Passed coverage:** unauth `/dashboard` redirects to `/login`; invalid login displays error; valid admin login creates session; 78 public/auth route loads across mobile/tablet/desktop returned no 4xx/5xx route failures; safe interaction sweep passed for mobile search filters/view modes, like/save buttons in scrolling mode, admin tab buttons, and messages filter links; no unexpected console/page errors after refinement.
+- **Confirmed issues:** mobile header shows duplicate/blank circular menu controls because `Button` base `inline-flex` conflicts with responsive `hidden` classes in `SiteHeader`; admin tab strip truncates/overflows on mobile/tablet and needs a better mobile/tab overflow treatment; fixed mobile tab bar visually covers current viewport content on member pages even though `MemberShell` has `pb-20`, so review design/spacing for pages where important content sits under the bar (messages/search/dashboard/profile detail especially).
+- **False positive/dev-only notes:** initial login 401 was from intentional bad-password test and is no longer counted; black floating `N` bubble in screenshots is Next.js dev indicator, not production UI; body-padding detector is stricter than the actual shell because `MemberShell` uses wrapper `pb-20`.
+- **Verification:** `npm.cmd run lint` passed after adding QA script.
+- **Suggested next fix batch:** fix `Button`/header responsive visibility issue first, then admin mobile tab UX, then review mobile bottom-nav spacing/content clearance.
+- **Owner follow-up:** asked whether logout exists, and called out mixed/unclear header colors/icons, especially two blank circles beside the bell. Codex is checking code for logout/signOut and confirming header icon root cause.
+- **Owner escalation:** owner noted Codex should have caught missing logout and ambiguous/blank header buttons during prior audits. Codex agrees prior passes over-weighted route load/layout metrics and under-weighted visible-control semantics/discoverability.
+- **New QA scope:** run a third, stricter visible-control audit: visible buttons/links with missing or unclear labels/icons, logout discoverability, header/menu clarity, safe click/navigation behavior, modal/drawer controls, and contrast/color ambiguity red flags.
+- **Visible-control audit added:** `scripts/visible-ui-audit.mjs`; runs semantic/visible-control checks across 39 page+viewport combinations and writes `qa-audit/visible-ui-audit.md` + JSON.
+- **Command:** `node scripts/visible-ui-audit.mjs`.
+- **Result:** 39 pages audited, 36 findings: 31 high, 5 medium. Findings collapse into 5 unique problem categories rather than 36 separate bugs.
+- **Confirmed high-priority findings:** (1) no visible logout/sign-out option on authenticated pages, repeated across mobile/tablet/desktop signed-in routes; (2) mobile header shows ambiguous blank circular controls beside bell due to responsive Button class conflict; (3) desktop `/search` filter toggle buttons have no accessible/user-facing name (`ToggleRow` buttons only have `aria-pressed`, no `aria-label`).
+- **Confirmed medium findings:** admin tabs clip/off-screen on mobile/tablet; login `Create account` link may be too low contrast depending on background/transparent calculation.
+- **Manual verification:** opening mobile More drawer shows Admin/VIP/Coin Wallet/Heart Reels/Visitors/Favourites/Settings/Help & Safety, but no logout/sign-out. Desktop has two menu buttons in DOM where first hidden one can confuse automation; visible duplicate/blank header controls are from `Button` base `inline-flex` conflicting with `hidden`/responsive display classes in `SiteHeader`.
+- **Lint:** `npm.cmd run lint` passed after cleaning unused helpers.
+- **Updated suggested next fix batch:** add sign-out action to drawer/header; fix `Button` class ordering or avoid shared Button for responsive icon buttons; add labels to search filter toggle buttons; improve admin tab mobile UX; verify login link contrast; rerun both `scripts/deep-qa.mjs` and `scripts/visible-ui-audit.mjs`.
+
+## Prompt 85 Claude (UI/UX audit — review + fix batch)
+- Reviewed screenshots (coming-soon/search/admin/dashboard mobile) + Codex deep-qa/visible-ui audits. **Core design good**; issues are contained polish.
+- **HIGH:** UX-1 no logout anywhere (add signOut to avatar menu + drawer); UX-2 blank/duplicate header circles (Button inline-flex vs responsive hidden) — confirmed on every signed-in page. **MED:** UX-3 admin tabs overflow mobile; UX-4 bottom-nav overlaps content; UX-5 inconsistent bilingual labels (my finding); UX-6 unlabeled search toggles (a11y). **LOW:** UX-7 login link contrast; UX-8 mobile card button crowding; UX-9 oversized empty states. Not issues: dev "N" bubble, demo data.
+- **Edited (project code):** none — review only.
+- **▶ Codex:** fix UX-1+UX-2 first, then MED, then LOW; re-run QA scripts. Claude re-reviews after. Append `## Prompt 86 Codex`.
+
+## Prompt 86 Codex
+- **User cue:** `claude updated`.
+- **Read first:** latest `ai_working.md` and `ai_collaboration.md`; Claude Prompt 85 asks Codex to fix UX-1 no logout and UX-2 blank/duplicate header circles first, then proceed through medium/low issues.
+- **Implementation plan:** fix signed-in header controls by avoiding shared `Button` for responsive icon buttons; add clear `Sign out` action using `signOut()` in the More drawer and account/header area; add accessible names to search filter toggle buttons while in the UI audit batch; rerun lint/deep QA/visible UI audit.
+- **Implemented UX fix batch:** fixed UX-1/UX-2 and several medium items. `SiteHeader` now imports `signOut`, uses plain responsive icon/account buttons instead of shared `Button` for header controls, opens the drawer from mobile More or larger-screen avatar/account button, and includes a clear `Sign out` action. Search filter `ToggleRow` buttons now have `aria-label`s. Admin tabs now wrap in a small-screen grid/flex-wrap instead of clipping horizontally. Mixed bilingual labels on dashboard/likes/visitors/profile/verification were made English-only for current locale consistency. Login secondary links now use explicit light pill backgrounds for contrast.
+- **Verification:** `npm.cmd run lint` passed; `npx.cmd tsc --noEmit` passed; `node scripts/visible-ui-audit.mjs` passed with 39 pages and 0 issues; `node scripts/deep-qa.mjs` passed with 87/87 checks, 0 warnings, 0 failures after detector correction for wrapper bottom padding; `node scripts/ux-shots.mjs` regenerated 32 screenshots in `ux-audit`; `npm.cmd run build` passed with 48 routes; `git diff --check` passed with CRLF warnings only; direct Playwright logout test confirmed `/api/auth/session` becomes `{}` after clicking Sign out.
+- **Visual sanity:** fresh `dashboard__mobile.png` shows only bell + one More button (blank circles gone); fresh `admin__mobile.png` shows wrapped admin tabs; fresh `login__mobile.png` shows clearer secondary auth link pills.
+- **Files changed in this batch:** `components/layout/site-header.tsx`, `components/feature/discovery/search-experience.tsx`, `components/feature/admin/admin-console.tsx`, `components/auth/login-modal.tsx`, `app/(member)/dashboard/page.tsx`, `app/(member)/likes/page.tsx`, `app/(member)/visitors/page.tsx`, `components/feature/self-service/profile-editor.tsx`, `components/feature/self-service/verification-form.tsx`, `.gitignore`, `package.json`, `package-lock.json`, scripts under `scripts/`, and collaboration logs. Generated `ux-audit/` and `qa-audit/` remain ignored.
+- **For Claude review:** review fresh screenshots in `ux-audit/`, especially mobile dashboard/admin/login/search, and inspect QA reports in `qa-audit/`. High-priority UX issues from Prompt 85 are resolved by automation and visual sanity check.
+
+## Prompt 87 Claude (UI/UX fix batch — APPROVED)
+- Re-reviewed fresh screenshots: **UX-2 blank circles gone, UX-3 admin tabs wrap (all 8 visible), UX-5 labels English-only** — all confirmed visually. UX-1 logout present (Codex test: session→{}). UX-6/7 done. Audits: visible-ui 0, deep-qa 87/87, build green.
+- **Verdict: APPROVED — UI polished.** UX-4 likely fine (pb-20; capture artifact) — real-device eyeball optional. LOW items deferred.
+- **Edited (project code):** none — review only.
+- **▶ Codex:** commit + push the UX batch, then owner redeploys to live (git pull/build/pm2 restart). Append `## Prompt 88 Codex`.

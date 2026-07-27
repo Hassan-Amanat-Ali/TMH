@@ -50,8 +50,8 @@ function SignInForm({ next }: { next: string }) {
       </label>
       <Button type="submit" disabled={loading}>{loading ? "Signing in..." : "Sign in"}</Button>
       <div className="flex flex-wrap justify-between gap-3 text-sm text-mauve-dark">
-        <Link href="/forgot-password" className="font-semibold text-burgundy hover:underline">Forgot password?</Link>
-        <Link href="/signup" className="font-semibold text-burgundy hover:underline">Create account</Link>
+        <Link href="/forgot-password" className="rounded-full bg-white/70 px-2 py-1 font-semibold text-burgundy-dark hover:bg-white hover:underline">Forgot password?</Link>
+        <Link href="/signup" className="rounded-full bg-white/70 px-2 py-1 font-semibold text-burgundy-dark hover:bg-white hover:underline">Create account</Link>
       </div>
     </form>
   );

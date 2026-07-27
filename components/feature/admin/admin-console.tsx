@@ -255,11 +255,11 @@ export function AdminConsole({ data }: { data: AdminConsoleData }) {
         ))}
       </div>
 
-      <div className="mb-5 flex gap-2 overflow-x-auto rounded-2xl border border-gold/15 bg-white/5 p-2">
+      <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl border border-gold/15 bg-white/5 p-2 sm:flex sm:flex-wrap">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           return (
-            <button key={tab.id} type="button" onClick={() => setActive(tab.id)} className={cn("inline-flex min-h-10 flex-none items-center gap-2 rounded-xl px-4 text-sm font-bold text-cream/70", active === tab.id && "bg-gold text-burgundy-dark")}>
+            <button key={tab.id} type="button" onClick={() => setActive(tab.id)} className={cn("inline-flex min-h-10 min-w-0 items-center justify-center gap-2 rounded-xl px-3 text-sm font-bold text-cream/70 sm:flex-none sm:px-4", active === tab.id && "bg-gold text-burgundy-dark")}>
               <Icon className="h-4 w-4" /> {tab.label}
             </button>
           );

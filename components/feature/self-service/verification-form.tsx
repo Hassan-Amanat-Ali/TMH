@@ -28,12 +28,12 @@ export function VerificationForm({ currentStatus }: { currentStatus: string }) {
       return;
     }
     setStatus(data.status || "PENDING");
-    setMessage("ส่งแล้ว · Your photo verification is waiting for admin review.");
+    setMessage("Your photo verification is waiting for admin review.");
   }
 
   return (
     <Card className="mx-auto max-w-3xl bg-white p-6 md:p-8">
-      <p className="text-xs font-bold uppercase tracking-[0.22em] text-gold">ยืนยันตัวตน · Verify me</p>
+      <p className="text-xs font-bold uppercase tracking-[0.22em] text-gold">Verify me</p>
       <h1 className="mt-2 font-serif text-4xl font-bold text-burgundy-dark">Photo verification</h1>
       <p className="mt-4 leading-7 text-mauve-dark">Upload or paste a private selfie/photo URL for the admin queue. Use a clear image holding today&apos;s date or your Thai My Heart username.</p>
       <div className="mt-5 rounded-3xl bg-cream-200 p-4 text-sm font-bold text-burgundy">Current status: {status}</div>

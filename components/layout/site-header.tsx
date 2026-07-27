@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
-import { Bell, Crown, Menu, MoreVertical, ShieldCheck, Wallet } from "lucide-react";
-import { Avatar, Button, Drawer } from "@/components/ui";
+import { signOut, useSession } from "next-auth/react";
+import { Bell, Crown, LogOut, MoreVertical, ShieldCheck, Wallet } from "lucide-react";
+import { Avatar, Drawer } from "@/components/ui";
 import { useLocale } from "@/components/providers/locale-provider";
 import { BrandMark } from "./brand-mark";
 
@@ -34,6 +34,7 @@ export function SiteHeader() {
   const { copy } = useLocale();
   const isSignedIn = status === "authenticated";
   const isAdmin = Boolean(session?.user?.isAdmin);
+  const memberName = session?.user?.name || session?.user?.email || "Member";
   const navLabels: Record<string, string> = {
     Dashboard: copy.nav.dashboard,
     Search: copy.nav.search,
@@ -49,6 +50,12 @@ export function SiteHeader() {
       .then((data: { unread?: number } | null) => setUnread(data?.unread || 0))
       .catch(() => setUnread(0));
   }, [isSignedIn]);
+
+  async function handleSignOut() {
+    setDrawerOpen(false);
+    setNotificationsOpen(false);
+    await signOut({ callbackUrl: "/" });
+  }
 
   return (
     <header className="sticky top-0 z-40 border-b border-gold/20 bg-chrome text-cream shadow-soft">
@@ -126,13 +133,12 @@ export function SiteHeader() {
                   </div>
                 )}
               </div>
-              <Avatar name="Member" className="hidden sm:grid" />
-              <Button type="button" variant="ghost" className="h-10 w-10 p-0 lg:hidden" onClick={() => setDrawerOpen(true)} aria-label="Open more menu">
+              <button type="button" className="hidden h-10 w-10 place-items-center rounded-full border border-gold/25 bg-gold text-burgundy-dark shadow-sm transition hover:bg-gold-light sm:grid" onClick={() => setDrawerOpen(true)} aria-label="Open account menu">
+                <Avatar name={memberName} className="h-10 w-10" />
+              </button>
+              <button type="button" className="grid h-10 w-10 place-items-center rounded-full border border-gold/25 bg-white/10 text-cream transition hover:bg-white/15 lg:hidden" onClick={() => setDrawerOpen(true)} aria-label="Open more menu">
                 <MoreVertical className="h-5 w-5" />
-              </Button>
-              <Button type="button" variant="ghost" className="hidden h-10 w-10 p-0 lg:inline-flex" onClick={() => setDrawerOpen(true)} aria-label="Open menu">
-                <Menu className="h-5 w-5" />
-              </Button>
+              </button>
             </>
           )}
         </div>
@@ -149,6 +155,10 @@ export function SiteHeader() {
               {label}
             </Link>
           ))}
+          <button type="button" onClick={handleSignOut} className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm font-bold text-rose-100 transition hover:bg-danger/20">
+            <LogOut className="h-4 w-4" />
+            Sign out
+          </button>
         </div>
       </Drawer>}
     </header>

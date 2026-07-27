@@ -6,6 +6,8 @@
 node_modules/
 dist/
 coverage/
+ux-audit/
+qa-audit/
 *.tsbuildinfo
 .DS_Store
 npm-debug.log*
