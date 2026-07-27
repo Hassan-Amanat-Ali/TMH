@@ -12,7 +12,7 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 
 ---
 
-**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 91** · **Codex → Prompt 90**
+**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 95** · **Codex → Prompt 94**
 
 ---
 
@@ -1127,3 +1127,38 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - **Read first:** Claude Prompt 91 approved the UX-13/root class-merge + signed-in Home batch and said the next step is owner approval before pushing to `origin/master`.
 - **Correction noted:** Claude's entry referred to local commit `564a5c6`, but `git status` showed the approved root-fix batch was still uncommitted; `564a5c6` is the previous signed-in UI polish commit.
 - **Action:** creating a clean local commit for the approved root-fix batch. Push is intentionally paused until owner explicitly approves.
+- **Push completed:** owner approved push; pushed `a31b2fe fix: resolve tailwind class overrides` to `origin/master` (`564a5c6..a31b2fe`).
+- **Next VPS redeploy steps for owner:** in `/var/www/websites/tmh`, run `git pull origin master`, then `npm ci`, then `npm run build`, then `pm2 restart tmh --update-env`. Afterward smoke test `/`, `/login`, signed-in Home, dashboard quick actions, More drawer close X/Sign out, and admin tabs.
+- **VPS redeploy checkpoint for `a31b2fe`:** owner ran `cd /var/www/websites/tmh`, `git pull origin master`, `npm ci`, `npm run build`, and `pm2 restart tmh --update-env`. Pull fast-forwarded `564a5c6..a31b2fe`; `npm ci` installed 485 packages and reported 20 audit vulnerabilities; build passed with 48 routes; PM2 restarted `tmh` online with pid `4152838` (PM2 in-memory version warning noted, non-blocking).
+- **Next live smoke:** check HTTPS `/`, `/login`, signed-in Home/member header, dashboard quick actions, More drawer close X/Sign out, and admin tabs.
+- **Live smoke checkpoint:** owner ran `curl -I https://thaimyheart.com`, `curl -I https://thaimyheart.com/login`, and `pm2 status tmh`. `/` returned 307 to `/coming-soon` as expected for logged-out launch gate; `/login` returned 200 OK; PM2 shows `tmh` online with pid `4152838`, uptime 24m, memory 60.9mb. PM2 in-memory version warning remains non-blocking.
+- **Remaining check:** browser login and visual/interaction smoke for signed-in Home, dashboard quick actions, More drawer close X/Sign out, and admin tabs.
+
+## Prompt 93 Claude (BUG: admin add-member silent failure)
+- **Owner (LIVE):** add member → no feedback, fields blanked, login failed. **Root cause:** `admin-console.tsx:304-318` post() not awaited + `reset()` unconditional → form always blanks; success/error `message` renders at L269 (top of page) far from the form → unseen. Likely the **password rule** (≥8/1 upper/1 digit in `createAdminMember`) rejected it → no account → login fails.
+- **Owner workaround given:** use pw like `Welcome123`, click Create, scroll to TOP for the message; report what it says.
+- **Fix spec'd for Codex:** await + reset only on success; inline success/error by the form; show password rule; refresh members list; verify admin-created member can log in E2E.
+- **Edited (project code):** none — review only.
+- **▶ Codex:** apply the add-member feedback fix. Append `## Prompt 94 Codex`.
+
+## Prompt 94 Codex
+- **User cue:** `claude updated`.
+- **Read first:** latest `ai_working.md` and `ai_collaboration.md`; Claude Prompt 93 identified the live admin Add Invited Member silent failure, and the refinement requested gracious inline field guidance plus no field clearing on failure.
+- **Implemented:** changed Add Invited Member submit flow to await `/api/admin/members`; reset the form only after a successful create; keep all fields on failure; show inline feedback beside the form; add always-visible helper text for password, age, and country code; refresh members list on success via `router.refresh()`.
+- **Reusable UI:** updated `Toast` to use accessible `role="alert"` for warnings and `role="status"` for non-warning notices, with a softer cream/gold warning style and stronger success contrast. Admin add-member feedback includes a small `Sparkles` icon and courteous copy.
+- **Verification:** `npm.cmd run lint` passed; `npx.cmd tsc --noEmit` passed; targeted Playwright check passed: weak password shows inline guidance and retains fields; valid `Welcome123` creates a generated local member; the generated member can log in as `MEMBER`; `npm.cmd run build` passed with 48 routes; `git diff --check` passed with CRLF warnings only.
+- **Local test data note:** targeted verification created local dev DB user `codex.member.1785179758664@example.com`; no production data was touched.
+- **Files changed:** `components/feature/admin/admin-console.tsx`, `components/ui/toast.tsx`, plus collaboration logs.
+- **For Claude review:** inspect the Add Invited Member form on the Launch tab; verify failure/success copy tone, field retention on failure, reset-on-success only, and reusable Toast styling is acceptable across existing usages.
+
+## Prompt 95 Claude (add-member fix — APPROVED)
+- Verified: createInvitedMember awaits, keeps fields on failure (warning + politeAdminMemberError), resets+refreshes only on success ("Welcome aboard - <email> can now sign in"); inline Toast (✨) in form; FieldHints (pw 8+/1 cap/1 num, age 18+, country 2-letter); Toast role=alert/status. Codex E2E: weak pw→guidance+fields kept; valid pw→member created→logs in. Build green.
+- **Verdict: APPROVED.** Accounts were always fine — was silent-UI only. Uncommitted → commit/push/redeploy.
+- **Edited (project code):** none — review only.
+- **▶ Codex:** commit + push add-member fix → owner redeploy. Append `## Prompt 96 Codex`.
+
+## Prompt 96 Codex
+- **User cue:** `claude updated`.
+- **Read first:** Claude Prompt 95 approved the Add Invited Member feedback fix and instructed Codex to commit + push, then owner redeploys on VPS.
+- **Pre-commit status:** changes limited to `components/feature/admin/admin-console.tsx`, `components/ui/toast.tsx`, and collaboration logs. `git diff --check` reported CRLF warnings only.
+- **Action:** committing the approved add-member feedback fix, then pushing to `origin/master`.

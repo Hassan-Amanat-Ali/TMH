@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { type FormEvent, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Check, ClipboardCheck, Coins, Eye, Gift, History, LifeBuoy, Rocket, Search, Shield, SlidersHorizontal, UploadCloud, UserCog, UserPlus } from "lucide-react";
-import { Badge, Card, Input } from "@/components/ui";
+import { AlertTriangle, Check, ClipboardCheck, Coins, Eye, Gift, History, LifeBuoy, Rocket, Search, Shield, SlidersHorizontal, Sparkles, UploadCloud, UserCog, UserPlus } from "lucide-react";
+import { Badge, Card, Input, Toast } from "@/components/ui";
 import { cn } from "@/lib/cn";
 
 type AdminItemUser = {
@@ -145,6 +145,7 @@ const tabs = [
 ] as const;
 
 type TabId = (typeof tabs)[number]["id"];
+type Feedback = { tone: "success" | "warning"; text: string } | null;
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -166,6 +167,8 @@ export function AdminConsole({ data }: { data: AdminConsoleData }) {
   const [active, setActive] = useState<TabId>("launch");
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState("");
+  const [addMemberFeedback, setAddMemberFeedback] = useState<Feedback>(null);
+  const [addMemberBusy, setAddMemberBusy] = useState(false);
   const [launchForm, setLaunchForm] = useState(data.launchSettings);
   const [busy, startTransition] = useTransition();
 
@@ -208,6 +211,51 @@ export function AdminConsole({ data }: { data: AdminConsoleData }) {
   function updateLaunchField<K extends keyof AdminLaunchSettings>(key: K, value: AdminLaunchSettings[K]) {
     setLaunchForm((current) => ({ ...current, [key]: value }));
     setMessage("");
+  }
+
+  async function createInvitedMember(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+    setAddMemberFeedback(null);
+    setAddMemberBusy(true);
+
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const email = String(form.get("email") || "").trim().toLowerCase();
+
+    try {
+      const response = await fetch("/api/admin/members", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password: form.get("password"),
+          displayName: form.get("displayName"),
+          age: Number(form.get("age")),
+          gender: form.get("gender"),
+          seeking: form.get("seeking"),
+          locationText: form.get("locationText"),
+          countryCode: form.get("countryCode"),
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        setAddMemberFeedback({
+          tone: "warning",
+          text: politeAdminMemberError(payload.error || "We could not create this member just now."),
+        });
+        return;
+      }
+
+      setAddMemberFeedback({
+        tone: "success",
+        text: `Welcome aboard - ${email || "this member"} can now sign in.`,
+      });
+      formElement.reset();
+      router.refresh();
+    } finally {
+      setAddMemberBusy(false);
+    }
   }
 
   function readComingSoonImage(file?: File) {
@@ -301,27 +349,28 @@ export function AdminConsole({ data }: { data: AdminConsoleData }) {
 
           <Card className="bg-chrome p-5 text-cream">
             <h2 className="mb-5 flex items-center gap-2 font-serif text-2xl font-bold text-gold-light"><UserPlus className="h-5 w-5" /> Add Invited Member</h2>
-            <form className="grid gap-3" onSubmit={(event) => {
-              event.preventDefault();
-              const form = new FormData(event.currentTarget);
-              post("/api/admin/members", {
-                email: form.get("email"),
-                password: form.get("password"),
-                displayName: form.get("displayName"),
-                age: Number(form.get("age")),
-                gender: form.get("gender"),
-                seeking: form.get("seeking"),
-                locationText: form.get("locationText"),
-                countryCode: form.get("countryCode"),
-              });
-              event.currentTarget.reset();
-            }}>
+            <form className="grid gap-3" onSubmit={createInvitedMember}>
+              {addMemberFeedback && (
+                <Toast tone={addMemberFeedback.tone}>
+                  <span className="flex gap-2">
+                    <Sparkles className="mt-0.5 h-4 w-4 flex-none text-gold" />
+                    <span>{addMemberFeedback.text}</span>
+                  </span>
+                </Toast>
+              )}
               <Input name="email" type="email" placeholder="Email" required className="bg-chrome-deep text-cream placeholder:text-cream/45" />
               <Input name="password" type="password" placeholder="Temporary password" required className="bg-chrome-deep text-cream placeholder:text-cream/45" />
+              <FieldHint>Password: 8+ characters, 1 capital letter, 1 number.</FieldHint>
               <Input name="displayName" placeholder="Display name" required className="bg-chrome-deep text-cream placeholder:text-cream/45" />
               <div className="grid gap-3 sm:grid-cols-2">
-                <Input name="age" type="number" min={18} defaultValue={30} required className="bg-chrome-deep text-cream placeholder:text-cream/45" />
-                <Input name="countryCode" maxLength={2} placeholder="Country code" className="bg-chrome-deep text-cream placeholder:text-cream/45" />
+                <div>
+                  <Input name="age" type="number" min={18} defaultValue={30} required className="bg-chrome-deep text-cream placeholder:text-cream/45" />
+                  <FieldHint>Age: 18+.</FieldHint>
+                </div>
+                <div>
+                  <Input name="countryCode" maxLength={2} placeholder="Country code" className="bg-chrome-deep text-cream placeholder:text-cream/45" />
+                  <FieldHint>Country code: 2 letters, for example TH or GB.</FieldHint>
+                </div>
               </div>
               <Input name="locationText" placeholder="City, country" className="bg-chrome-deep text-cream placeholder:text-cream/45" />
               <div className="grid gap-3 sm:grid-cols-2">
@@ -338,7 +387,7 @@ export function AdminConsole({ data }: { data: AdminConsoleData }) {
                   <option value="OTHER">Open to other</option>
                 </select>
               </div>
-              <button type="submit" disabled={busy} className="min-h-11 rounded-full bg-gold px-5 text-sm font-black text-burgundy-dark disabled:opacity-50">Create member</button>
+              <button type="submit" disabled={busy || addMemberBusy} className="min-h-11 rounded-full bg-gold px-5 text-sm font-black text-burgundy-dark disabled:opacity-50">{addMemberBusy ? "Creating..." : "Create member"}</button>
             </form>
           </Card>
         </div>
@@ -635,4 +684,22 @@ function EmptyState({ label }: { label: string }) {
       {label}
     </div>
   );
+}
+
+function FieldHint({ children }: { children: React.ReactNode }) {
+  return <p className="mt-1 text-xs font-semibold leading-5 text-cream/60">{children}</p>;
+}
+
+function politeAdminMemberError(error: string) {
+  const normalized = error.trim() || "We could not create this member just now.";
+  if (/password/i.test(normalized)) {
+    return "Almost there - please use a password with at least 8 characters, one capital letter, and one number to keep members safe.";
+  }
+  if (/18|age/i.test(normalized)) {
+    return "Almost there - invited members must be 18 or over before we can create the account.";
+  }
+  if (/email/i.test(normalized)) {
+    return `Almost there - ${normalized}`;
+  }
+  return `Almost there - ${normalized}`;
 }

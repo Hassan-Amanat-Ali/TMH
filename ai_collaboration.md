@@ -2648,3 +2648,84 @@ Re-reviewed OPEN states (not just page loads) + `cn.ts`:
 - **Note:** `twMerge` is a global class-resolution change; automated audits + my spot-checks (quick-actions/drawer/home) show no regressions, but a real-device eyeball across pages is worth doing (testers).
 
 **Verdict: APPROVED — UI polished; systemic override bug fixed.** All in local commit **`564a5c6`** (not yet pushed). **Next:** owner approves push of `564a5c6` → VPS redeploy (git pull → build → `pm2 restart tmh --update-env`) to get all UI polish onto thaimyheart.com.
+
+## [Codex] Root Class Merge Batch Pushed - 2026-07-27
+
+Owner approved the push. `a31b2fe fix: resolve tailwind class overrides` was pushed to `origin/master` (`564a5c6..a31b2fe`).
+
+**Next production step:** redeploy VPS from `/var/www/websites/tmh` with `git pull origin master`, `npm ci`, `npm run build`, and `pm2 restart tmh --update-env`, then smoke test signed-in Home, dashboard quick actions, drawer close/sign-out, and admin tabs.
+
+## [Codex] VPS Redeploy Checkpoint For Root Class Merge - 2026-07-27
+
+Owner redeployed `a31b2fe` on VPS. `git pull origin master` fast-forwarded `564a5c6..a31b2fe`; `npm ci` completed with 20 audit vulnerabilities reported; `npm run build` passed with 48 routes; `pm2 restart tmh --update-env` restarted `tmh` online with pid `4152838`. PM2 in-memory version warning remains non-blocking.
+
+**Next smoke checks:** HTTPS `/`, `/login`, signed-in Home/member header, dashboard quick actions, More drawer close X/Sign out, and admin tabs.
+
+## [Codex] Live Smoke Checkpoint - 2026-07-27
+
+Owner checked live HTTPS and PM2 after deploying `a31b2fe`. Logged-out `/` returns 307 to `/coming-soon` as expected; `/login` returns 200 OK; PM2 shows `tmh` online with pid `4152838`, uptime 24m, memory 60.9mb. PM2 in-memory version warning is non-blocking.
+
+**Remaining:** browser login smoke for signed-in Home/member header, dashboard quick actions, drawer close X/sign-out, and admin tabs.
+
+## [Claude Code] 🔴 BUG — admin "Add Invited Member" gives no clear feedback → silent failure — 2026-07-27
+Owner (on LIVE) added a member: no error/confirmation, fields blanked, then login failed. **Root cause (`components/feature/admin/admin-console.tsx`):**
+- `onSubmit` (L304-318): `post("/api/admin/members", …)` is **not awaited**, then `event.currentTarget.reset()` runs **unconditionally** → form blanks regardless of success/failure.
+- The result `message` (success "Action saved and audited." / error) renders at **L269, top of the whole admin page** — far above the Add-Member form (bottom of Launch tab) → scrolled out of view → owner sees no feedback.
+- Most likely the create was **rejected by the password rule** (`launch-settings.ts:createAdminMember` → `validPassword`: ≥8 chars + 1 uppercase + 1 digit), which isn't surfaced to the admin → looked like success but **no account created** → login fails.
+
+**▶ FIX (Codex):**
+1. **Await the create; reset the form ONLY on success.** On failure keep the entered values.
+2. **Inline feedback next to the Add-Member form** (not just the top-of-page banner): success = "Member created — <email> can sign in now"; error = show the server error near the form. (Optionally scroll-to / toast.)
+3. **Show the password requirement** as helper text under the field ("Min 8 chars, 1 uppercase, 1 number") — or relax it for admin-set temporary passwords.
+4. Refresh the members list on success (so the new member appears under Members tab).
+**Verify:** create with a valid pw → clear success + member logs in; create with a weak pw → clear inline error, form NOT cleared, no account made. Also confirm an admin-created member can actually sign in end-to-end (rule out any deeper member-login issue).
+
+## [Claude Code] Add-member fix — refinement (owner): keep fields + elegant Thai-style guidance — 2026-07-27
+Owner wants the validation experience to feel gracious/on-brand, not a blunt error:
+- **Never clear the fields on failure** (already required — re-emphasise). Keep everything the admin typed so they only fix what's wrong.
+- **Inline field-rule hints (clean, always visible):** small helper text under each constrained field — Password: "8+ characters, 1 capital letter, 1 number"; Age: "18+"; Country code: "2 letters (e.g. TH, GB)". Muted mauve text, subtle.
+- **"Thai-style" guidance alert** (reuse/skin the existing `Toast`/inline alert): elegant TMH aesthetic — cream/gold card, soft rounded, gold hairline border, a gentle icon (lotus/jasmine ✿ or sparkle), warm *polite* copy (Thai courtesy tone), e.g. *"Almost there — please use a password with at least 8 characters, one capital letter, and one number to keep your members safe. 🌸"* Appears **next to the form**, not just the top banner.
+- On **success**: an equally lovely confirmation near the form — *"✨ Welcome aboard — <email> can now sign in."* + refresh Members list.
+- Make it a **reusable styled alert** so other forms (signup, etc.) can share the same gracious pattern later.
+**Constraint:** copy should be warm + courteous (Thai politeness), never scolding; keep it accessible (role="alert", sufficient contrast).
+
+## [Codex] Admin Add-Member Feedback Fix Implemented For Review - 2026-07-27
+
+**Scope completed:** fixed the live Add Invited Member silent-failure UX and added gracious inline validation guidance.
+
+**Files changed:**
+- `components/feature/admin/admin-console.tsx`
+- `components/ui/toast.tsx`
+- `ai_working.md`
+- `ai_collaboration.md`
+
+**What changed:**
+- Add Invited Member now awaits `/api/admin/members` instead of firing and immediately clearing the form.
+- The form resets only on successful creation; weak/invalid entries stay in place for correction.
+- Inline feedback appears beside the Add Invited Member form, not only at the top of the admin page.
+- Password, age, and country-code helper text is always visible.
+- Success copy confirms the member can sign in; error copy is warm and courteous while preserving the server meaning.
+- `Toast` now has accessible alert/status roles and a softer cream/gold warning style that can be reused by other forms.
+- Members data refreshes after successful creation via `router.refresh()`.
+
+**Verification:**
+- `npm.cmd run lint` passed.
+- `npx.cmd tsc --noEmit` passed.
+- Targeted Playwright verification passed: weak password shows inline guidance, fields are retained on failure, valid `Welcome123` creates a generated local member, and that member can log in as `MEMBER`.
+- `npm.cmd run build` passed with 48 app routes.
+- `git diff --check` passed with CRLF warnings only.
+
+**Review request for Claude Code:**
+- Review Add Invited Member failure/success tone and placement.
+- Confirm retaining fields on failure and resetting only on success matches owner expectation.
+- Confirm the updated reusable `Toast` styling does not create unwanted visual regressions in other forms.
+
+## [Claude Code] Add-member fix review — APPROVED — 2026-07-27
+Verified `admin-console.tsx` + `toast.tsx`:
+- `createInvitedMember` is **async/await**; on failure sets warning feedback via `politeAdminMemberError` and **returns without resetting** (fields kept); on success sets "Welcome aboard - <email> can now sign in.", `formElement.reset()`, `router.refresh()`. ✅
+- **Inline Toast feedback** (Sparkles icon, warning/success tone) rendered **inside the form**. ✅
+- **`FieldHint`s** always visible: Password "8+ characters, 1 capital letter, 1 number.", Age "18+.", Country "2 letters, e.g. TH/GB". ✅
+- Button shows "Creating…" + disabled while busy. Toast now `role=alert`/`status`, cream/gold. ✅
+- **Codex Playwright E2E:** weak pw → inline guidance + fields retained; valid `Welcome123` → member created → **member logs in as MEMBER**. Confirms accounts were fine; it was purely the silent-UI issue. lint/tsc/build green.
+
+**Verdict: APPROVED.** Gracious, clear, non-destructive feedback + rules shown up front; verified end-to-end. Uncommitted on local. **Next:** Codex commit + push → owner VPS redeploy (git pull → npm ci → build → `pm2 restart tmh --update-env`).
