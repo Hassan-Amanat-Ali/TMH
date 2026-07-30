@@ -1,8 +1,10 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { ChangeEvent, FormEvent, useState } from "react";
 import { signOut } from "next-auth/react";
+import { Camera, Loader2, UploadCloud } from "lucide-react";
 import { Button, Card, Input, Toast } from "@/components/ui";
+import { uploadMediaFile } from "@/lib/client/media-upload";
 import type { MemberProfileForm } from "@/lib/server/services/member-self-service";
 
 export function ProfileEditor({ profile }: { profile: MemberProfileForm }) {
@@ -13,6 +15,7 @@ export function ProfileEditor({ profile }: { profile: MemberProfileForm }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   function update(field: keyof MemberProfileForm, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -38,6 +41,35 @@ export function ProfileEditor({ profile }: { profile: MemberProfileForm }) {
       setForm((current) => ({ ...current, completion: data.completion ?? current.completion }));
     }
     setMessage("Profile updated. Your next match sees the cleaner version.");
+  }
+
+  async function uploadProfilePhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setError("");
+    setMessage("");
+    if (!file.type.startsWith("image/")) {
+      setError("Choose a JPG, PNG, WEBP, or GIF profile photo.");
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const url = await uploadMediaFile(file, "profile-photo");
+      const response = await fetch("/api/profile/photo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = (await response.json().catch(() => null)) as { ok?: boolean; photoCount?: number; error?: string } | null;
+      if (!response.ok || !data?.ok) throw new Error(data?.error || "Could not save profile photo.");
+      setForm((current) => ({ ...current, photoCount: data.photoCount ?? current.photoCount + 1 }));
+      setMessage("Photo added. Thank you for keeping your profile real.");
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Could not upload profile photo.");
+    } finally {
+      setUploadingPhoto(false);
+    }
   }
 
   async function deleteAccount(event: FormEvent) {
@@ -101,6 +133,20 @@ export function ProfileEditor({ profile }: { profile: MemberProfileForm }) {
             <div className="h-full rounded-full bg-gold" style={{ width: `${Math.min(100, form.completion)}%` }} />
           </div>
           <p className="mt-4 text-sm leading-6 text-cream-200">Complete, honest profiles build trust when they include photos, details, and verification.</p>
+        </Card>
+        <Card className="bg-white p-6">
+          <div className="flex items-start gap-3">
+            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gold/20 text-burgundy"><Camera className="h-5 w-5" /></span>
+            <div>
+              <h2 className="font-serif text-2xl font-bold text-burgundy">Profile photos</h2>
+              <p className="mt-1 text-sm leading-6 text-mauve-dark">{form.photoCount ? `${form.photoCount} photo${form.photoCount === 1 ? "" : "s"} uploaded.` : "Add your first real photo so members do not see a placeholder."}</p>
+            </div>
+          </div>
+          <label className={`mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-burgundy px-4 text-sm font-bold text-cream ${uploadingPhoto ? "opacity-70" : "cursor-pointer"}`}>
+            {uploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
+            {uploadingPhoto ? "Uploading..." : form.photoCount ? "Add another photo" : "Add your photo"}
+            <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" disabled={uploadingPhoto} onChange={uploadProfilePhoto} />
+          </label>
         </Card>
         <Card className="bg-white p-6">
           <h2 className="font-serif text-2xl font-bold text-burgundy">Account settings</h2>

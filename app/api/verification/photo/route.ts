@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { AuthError, requireUser } from "@/lib/server/session";
+import { isAllowedPublicMediaUrl } from "@/lib/server/r2";
 
 export async function POST(request: Request) {
   try {
@@ -9,8 +10,8 @@ export async function POST(request: Request) {
     const evidenceUrl = typeof body?.evidenceUrl === "string" ? body.evidenceUrl.trim() : "";
     const note = typeof body?.note === "string" ? body.note.trim() : "";
 
-    if (!evidenceUrl) {
-      return NextResponse.json({ error: "Add a selfie/photo URL for review." }, { status: 400 });
+    if (!isAllowedPublicMediaUrl(evidenceUrl, ["image"])) {
+      return NextResponse.json({ error: "Upload a selfie/photo through Thai My Heart first." }, { status: 400 });
     }
 
     await prisma.verification.upsert({

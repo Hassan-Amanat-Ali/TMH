@@ -6,6 +6,7 @@ import { ChangeEvent, FormEvent, useState } from "react";
 import { Archive, Ban, Flag, ImagePlus, Languages, Send, Star, Tag, Undo2, X } from "lucide-react";
 import { Button, Card, Toast } from "@/components/ui";
 import { SendGiftButton, type GiftOption } from "@/components/feature/economy/send-gift-button";
+import { uploadMediaFile } from "@/lib/client/media-upload";
 import type { ChatMessage, ConversationDetail, ConversationSummary } from "@/lib/server/services/messaging";
 
 export function MessagingView({
@@ -33,7 +34,8 @@ export function MessagingView({
   const [reportOpen, setReportOpen] = useState(false);
   const [reportCategory, setReportCategory] = useState("SCAM");
   const [reportNote, setReportNote] = useState("");
-  const [imageDataUrl, setImageDataUrl] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState("");
   const [translations, setTranslations] = useState<Record<string, string>>({});
 
   async function loadConversation(conversationId: string) {
@@ -49,36 +51,49 @@ export function MessagingView({
     setLabel(data.conversation.label || "");
     setReportOpen(false);
     setReportNote("");
-    setImageDataUrl("");
+    setImageFile(null);
+    setImagePreviewUrl("");
     void fetch(`/api/messages/conversations/${conversationId}/read`, { method: "POST" });
     setConversations((items) => items.map((item) => item.id === conversationId ? { ...item, unreadCount: 0 } : item));
   }
 
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
-    if (!active || (!draft.trim() && !imageDataUrl)) return;
+    if (!active || (!draft.trim() && !imageFile)) return;
     setSending(true);
     setError("");
     setNotice("");
     const body = draft.trim();
-    const mediaUrl = imageDataUrl;
-    setDraft("");
-    setImageDataUrl("");
-    const response = await fetch(`/api/messages/conversations/${active.id}/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(mediaUrl ? { body, mediaUrl, type: "IMAGE" } : { body, type: "TEXT" }),
-    });
-    const data = (await response.json()) as { ok?: boolean; error?: string; warning?: string | null };
-    setSending(false);
-    if (!response.ok || !data.ok) {
-      setError(data.error || "Could not send message.");
+    const selectedImage = imageFile;
+    const selectedPreview = imagePreviewUrl;
+    try {
+      const mediaUrl = selectedImage ? await uploadMediaFile(selectedImage, "message") : "";
+      setDraft("");
+      setImageFile(null);
+      setImagePreviewUrl("");
+      const response = await fetch(`/api/messages/conversations/${active.id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(mediaUrl ? { body, mediaUrl, type: "IMAGE" } : { body, type: "TEXT" }),
+      });
+      const data = (await response.json()) as { ok?: boolean; error?: string; warning?: string | null };
+      if (!response.ok || !data.ok) {
+        setError(data.error || "Could not send message.");
+        setDraft(body);
+        setImageFile(selectedImage);
+        setImagePreviewUrl(selectedPreview);
+        return;
+      }
+      if (data.warning) setNotice(data.warning);
+      await loadConversation(active.id);
+    } catch (sendError) {
+      setError(sendError instanceof Error ? sendError.message : "Could not send message.");
       setDraft(body);
-      setImageDataUrl(mediaUrl);
-      return;
+      setImageFile(selectedImage);
+      setImagePreviewUrl(selectedPreview);
+    } finally {
+      setSending(false);
     }
-    if (data.warning) setNotice(data.warning);
-    await loadConversation(active.id);
   }
 
   async function blockConversation() {
@@ -152,14 +167,16 @@ export function MessagingView({
       setError("Choose an image file.");
       return;
     }
-    if (file.size > 450_000) {
-      setError("Temporary photo messages are limited to roughly 450 KB until media storage is configured.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setImageDataUrl(typeof reader.result === "string" ? reader.result : "");
-    reader.onerror = () => setError("Could not read image.");
-    reader.readAsDataURL(file);
+    setError("");
+    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    setImageFile(file);
+    setImagePreviewUrl(URL.createObjectURL(file));
+  }
+
+  function clearSelectedImage() {
+    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    setImageFile(null);
+    setImagePreviewUrl("");
   }
 
   async function translateMessage(message: ChatMessage) {
@@ -309,13 +326,13 @@ export function MessagingView({
               }) : <p className="rounded-3xl bg-white p-4 text-sm text-mauve-dark">Start with a warm, respectful hello.</p>}
             </div>
             <form onSubmit={sendMessage} className="border-t border-cream-300 p-4">
-              {imageDataUrl ? (
+              {imagePreviewUrl ? (
                 <div className="mb-3 flex items-center gap-3 rounded-3xl border border-gold/30 bg-cream p-3">
                   <div className="relative h-20 w-20 overflow-hidden rounded-2xl">
-                    <Image src={imageDataUrl} alt="Selected attachment" fill sizes="80px" className="object-cover" />
+                    <Image src={imagePreviewUrl} alt="Selected attachment" fill sizes="80px" className="object-cover" unoptimized />
                   </div>
                   <p className="flex-1 text-sm font-semibold text-mauve-dark">Photo ready. Add an optional caption before sending.</p>
-                  <button type="button" className="grid h-9 w-9 place-items-center rounded-full bg-white text-burgundy" aria-label="Remove photo" onClick={() => setImageDataUrl("")}>
+                  <button type="button" className="grid h-9 w-9 place-items-center rounded-full bg-white text-burgundy" aria-label="Remove photo" onClick={clearSelectedImage}>
                     <X size={16} />
                   </button>
                 </div>
@@ -329,15 +346,15 @@ export function MessagingView({
                   className="min-h-12 flex-1 resize-none rounded-3xl border border-cream-300 bg-cream px-4 py-3 text-sm outline-none focus:border-gold"
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
-                  placeholder={active.blocked ? "Conversation blocked" : imageDataUrl ? "Optional caption..." : "Write a thoughtful message..."}
+                  placeholder={active.blocked ? "Conversation blocked" : imagePreviewUrl ? "Optional caption..." : "Write a thoughtful message..."}
                   disabled={active.blocked || sending}
                 />
-                <Button type="submit" variant="primary" disabled={active.blocked || sending || (!draft.trim() && !imageDataUrl)}>
+                <Button type="submit" variant="primary" disabled={active.blocked || sending || (!draft.trim() && !imageFile)}>
                   <Send size={18} />
                   Send
                 </Button>
               </div>
-              <p className="mt-2 text-xs font-semibold text-mauve-dark">Photo messages unlock after 30 days and are limited to 10 per 24 hours.</p>
+              <p className="mt-2 text-xs font-semibold text-mauve-dark">Photo messages upload securely to TMH media storage, unlock after 30 days, and are limited to 10 per 24 hours.</p>
             </form>
           </>
         ) : (

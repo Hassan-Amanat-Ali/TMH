@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState, useTransition } from "react";
+import type { MembershipLevel } from "@/lib/prisma/client";
 import type { DiscoveryAd, DiscoveryFilters, DiscoveryProfile, LocationOption, SavedSearchSummary } from "@/lib/server/services/discovery";
 import { Badge, Button, Chip, Input } from "@/components/ui";
 import { MatchBadge } from "./match-badge";
@@ -42,6 +43,26 @@ function messageHref(profileId: string, isSignedIn: boolean) {
   return isSignedIn ? `/messages?with=${profileId}` : `/?login=1&next=${encodeURIComponent(`/messages?with=${profileId}`)}`;
 }
 
+function HousePromoCard({ compact = false }: { compact?: boolean }) {
+  return (
+    <Link href="/vip" className="block overflow-hidden rounded-2xl border border-gold/35 bg-[linear-gradient(135deg,#4a1b26,#7a2233_58%,#b4862b)] p-4 text-cream shadow-soft">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gold-light">Thai My Heart</p>
+          <h3 className={`${compact ? "text-xl" : "text-2xl"} mt-2 font-serif font-bold text-gold-light`}>Upgrade to VIP</h3>
+        </div>
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gold/20 text-gold-light">
+          <Crown size={22} />
+        </span>
+      </div>
+      <div className="mt-4 grid gap-2 text-sm font-semibold leading-5 text-cream-100">
+        <p>Unlimited likes, read receipts, priority results, and more ways to connect carefully.</p>
+        {!compact ? <p className="text-xs text-cream-200">Coins and gifts are managed from the VIP wallet.</p> : null}
+      </div>
+      <span className="mt-4 inline-flex min-h-9 items-center rounded-xl bg-gold px-3 text-xs font-black text-burgundy-dark">View VIP & coins</span>
+    </Link>
+  );
+}
 function AdCard({ ad, compact = false }: { ad: DiscoveryAd; compact?: boolean }) {
   return (
     <a href={ad.targetUrl || "/vip"} className="block overflow-hidden rounded-2xl border border-gold/25 bg-chrome text-cream shadow-soft">
@@ -179,7 +200,7 @@ function ResultCard({ profile, priority = false, isSignedIn }: { profile: Discov
   );
 }
 
-function AdSlot({ ad, label = "Sponsored" }: { ad?: DiscoveryAd; label?: string }) {
+function AdSlot({ ad, label = "Sponsored", showHousePromo }: { ad?: DiscoveryAd; label?: string; showHousePromo: boolean }) {
   const adsenseClient = process.env.NEXT_PUBLIC_ADSENSE_CLIENT;
 
   if (adsenseClient) {
@@ -210,12 +231,7 @@ function AdSlot({ ad, label = "Sponsored" }: { ad?: DiscoveryAd; label?: string 
     );
   }
 
-  return (
-    <div className="rounded-2xl border border-dashed border-[#EBDCCB] bg-white p-4 text-center shadow-sm">
-      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-mauve">{label}</p>
-      <div className="mt-3 grid min-h-32 place-items-center rounded-xl bg-cream-100 px-4 text-xs font-bold leading-5 text-mauve-dark">Ad placement</div>
-    </div>
-  );
+  return showHousePromo ? <HousePromoCard /> : null;
 }
 
 function FilterSelect({
@@ -458,6 +474,7 @@ export function SearchExperience({
   savedSearches,
   initialFilters,
   isSignedIn,
+  viewerMembership,
 }: {
   profiles: DiscoveryProfile[];
   gridAds: DiscoveryAd[];
@@ -465,6 +482,7 @@ export function SearchExperience({
   locations: LocationOption[];
   savedSearches: SavedSearchSummary[];
   initialFilters: DiscoveryFilters;
+  viewerMembership?: MembershipLevel | null;
   isSignedIn: boolean;
 }) {
   const router = useRouter();
@@ -483,6 +501,7 @@ export function SearchExperience({
   const [sort, setSort] = useState<SortMode>(initialFilters.sort || "best");
   const [saved, setSaved] = useState(savedSearches);
   const [notice, setNotice] = useState("");
+  const showHousePromo = viewerMembership !== "VIP";
 
   function currentFilters(): DiscoveryFilters {
     return {
@@ -760,12 +779,18 @@ export function SearchExperience({
 
           <div className="lg:hidden">{mode === "swipe" ? <SwipeDeck profiles={filtered} ads={swipeAds} /> : null}</div>
           <div className={`space-y-4 ${mode === "swipe" ? "hidden lg:block" : ""}`}>
+            {!filtered.length ? (
+              <div className="rounded-2xl border border-dashed border-[#EBDCCB] bg-white p-8 text-center shadow-sm">
+                <p className="font-serif text-3xl font-bold text-burgundy">No members match these filters yet</p>
+                <p className="mt-3 text-sm leading-6 text-mauve-dark">More real members are joining soon. Try widening the age, location, or verification filters.</p>
+              </div>
+            ) : null}
             {filtered.map((profile, index) => (
               <div key={profile.userId}>
                 <ResultCard profile={profile} priority={index < 3} isSignedIn={isSignedIn} />
-                {(index + 1) % 4 === 0 && gridAds.length ? (
+                {(index + 1) % 4 === 0 && (gridAds.length || showHousePromo) ? (
                   <div className="mt-4 lg:hidden">
-                    <AdCard ad={gridAds[index % gridAds.length]} compact />
+                    {gridAds.length ? <AdCard ad={gridAds[index % gridAds.length]} compact /> : <HousePromoCard compact />}
                   </div>
                 ) : null}
               </div>
@@ -791,9 +816,9 @@ export function SearchExperience({
               </Link>
             </div>
           </div>
-          <AdSlot ad={gridAds[0]} />
-          <AdSlot ad={gridAds[1] || gridAds[0]} />
-          <AdSlot ad={gridAds[2] || gridAds[0]} label="Advertisement" />
+          <AdSlot ad={gridAds[0]} showHousePromo={showHousePromo} />
+          <AdSlot ad={gridAds[1] || gridAds[0]} showHousePromo={showHousePromo} />
+          <AdSlot ad={gridAds[2] || gridAds[0]} label="Advertisement" showHousePromo={showHousePromo} />
           <div className="grid grid-cols-2 gap-3">
             <Link href="/likes" className="rounded-2xl bg-white p-4 text-center text-sm font-black text-burgundy shadow-sm">
               <Heart className="mx-auto mb-2" size={18} />

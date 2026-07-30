@@ -57,6 +57,11 @@ export function ProfileDetailView({ profile, gifts = [], giftBalance = 0 }: { pr
           <Card className="bg-white p-6">
             <h2 className="font-serif text-3xl font-bold text-burgundy">Gallery</h2>
             <div className="mt-5 grid gap-4 sm:grid-cols-3">
+              {!profile.photos.length ? (
+                <div className="rounded-3xl border border-dashed border-cream-300 bg-cream-100 p-6 text-sm font-semibold leading-6 text-mauve-dark sm:col-span-3">
+                  This member has not added gallery photos yet.
+                </div>
+              ) : null}
               {profile.photos.slice(0, 5).map((photo, index) => (
                 <div key={photo} className={`relative overflow-hidden rounded-3xl ${index === 0 ? "aspect-[4/5] sm:col-span-2 sm:row-span-2" : "aspect-square"}`}>
                   <Image src={photo} alt={`${profile.name} gallery ${index + 1}`} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" />

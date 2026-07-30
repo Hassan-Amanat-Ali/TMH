@@ -2729,3 +2729,170 @@ Verified `admin-console.tsx` + `toast.tsx`:
 - **Codex Playwright E2E:** weak pw → inline guidance + fields retained; valid `Welcome123` → member created → **member logs in as MEMBER**. Confirms accounts were fine; it was purely the silent-UI issue. lint/tsc/build green.
 
 **Verdict: APPROVED.** Gracious, clear, non-destructive feedback + rules shown up front; verified end-to-end. Uncommitted on local. **Next:** Codex commit + push → owner VPS redeploy (git pull → npm ci → build → `pm2 restart tmh --update-env`).
+
+## [Codex] Admin Add-Member Feedback Fix Pushed - 2026-07-27
+
+Claude approved the add-member feedback fix. Codex committed `827a87d fix: clarify admin member creation feedback` and pushed it to `origin/master` (`a31b2fe..827a87d`). First push attempt hit a transient GitHub TLS/schannel handshake error; retry succeeded.
+
+**Next production step:** redeploy VPS from `/var/www/websites/tmh` with `git pull origin master`, `npm ci`, `npm run build`, and `pm2 restart tmh --update-env`.
+
+**Smoke checks after deploy:** weak Add Invited Member password keeps fields and shows inline warning; valid password such as `Welcome123` creates the member with inline success; created member can sign in.
+
+## [Codex] DNS / Cloudflare / Hostinger Migration Checkpoint - 2026-07-30
+
+**Context:** Owner moved `thaimyheart.com` nameservers away from Hostinger/IONOS flow and toward Cloudflare so Cloudflare can manage DNS and support the new R2/storage subdomain. During propagation, the main domain intermittently showed Hostinger pages, 403 responses, or failed loading.
+
+**What was checked:**
+- Public DNS initially still showed Hostinger nameservers `lunar.dns-parking.com` and `solar.dns-parking.com`, with Hostinger A/AAAA records and `www` CNAME to `www.thaimyheart.com.cdn.hstgr.net`.
+- HTTP/HTTPS headers during the bad state showed Hostinger markers: `platform: hostinger`, `panel: hpanel`, `Server: hcdn`, and PHP headers. Conclusion: the 403 was from Hostinger, not TMH VPS/nginx/Next.js.
+- Owner confirmed IONOS nameservers are set to Cloudflare: `ricardo.ns.cloudflare.com` and `rose.ns.cloudflare.com`.
+- Later resolver checks showed `1.1.1.1` and `8.8.8.8` now see Cloudflare nameservers.
+- Direct query to `ricardo.ns.cloudflare.com` showed correct Cloudflare DNS: apex A `195.110.58.111`; `www` CNAME/alias to apex.
+- Direct forced curl to VPS using `--resolve thaimyheart.com:443:195.110.58.111` returned nginx and `307 /coming-soon`, confirming VPS/nginx/TMH app are healthy.
+
+**Correct main website DNS target:**
+- `@` A -> `195.110.58.111`
+- `@` AAAA -> `2a02:4780:f:a146::1`
+- `www` CNAME -> `thaimyheart.com`
+- Use DNS-only during testing; Cloudflare proxy can be enabled later intentionally.
+
+**Records that should not be proxied:**
+- IONOS mail/service records: MX, SPF TXT, `autodiscover`, `_dmarc`, `_domainconnect` should remain DNS-only.
+
+**Subdomain / R2:**
+- Owner created a Cloudflare subdomain and attached it to an R2 bucket. This is separate from the main website records.
+- Old `media.thaimyheart.com A 217.160.0.114` looked like an IONOS placeholder and should not be used for final R2 storage.
+
+**Files created for DNS:**
+- `C:\Users\Power\Downloads\thaimyheart.com-fixed-dns-only.txt`
+- `C:\Users\Power\Downloads\thaimyheart.com-cloudflare-upload.txt`
+
+**Cloudflare import result:**
+- Import failed for apex NS records because Cloudflare does not allow overwriting assigned zone nameservers inside DNS records.
+- Several records failed because identical/conflicting records already existed. Conclusion: manual editing in Cloudflare DNS is preferred over re-uploading the full zone file.
+
+**Current diagnosis:**
+- Main domain 403 was stale Hostinger DNS/cache, not a project issue.
+- Public DNS is moving/has moved to Cloudflare depending on resolver; local browser/ISP may still cache Hostinger.
+- Recommended owner action: wait for propagation, flush local DNS (`ipconfig /flushdns`), test incognito/mobile data, and avoid project/VPS changes for this issue.
+
+## [Claude Code] R2 env contract + status — 2026-07-30
+DNS verified live: `thaimyheart.com` → Cloudflare NS, A `195.110.58.111` **DNS-only** (main site unaffected; login fix intact). `media.thaimyheart.com` → Cloudflare edge (proxied) for R2 custom domain. Owner's local "403" = stale local DNS cache (VPS healthy) → `ipconfig /flushdns`.
+**Owner is filling R2 creds into local `.env` themselves** (secrets never in chat). **Canonical env var names Codex MUST code against:**
+- `R2_ACCOUNT_ID` → S3 endpoint `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`
+- `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (S3 creds)
+- `R2_BUCKET` (bucket name)
+- `R2_PUBLIC_HOST` = `https://media.thaimyheart.com` (base URL for serving objects)
+
+### ▶ BATCH: Cloudflare R2 media uploads (Codex — after owner confirms .env + custom domain)
+- Use `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` (S3-compatible) with the endpoint from `R2_ACCOUNT_ID`, region `auto`.
+- **Server endpoint** (`requireUser`) issues a **presigned PUT URL** (short TTL) for a validated key `users/{userId}/{type}/{uuid.ext}` after checking MIME (image/*, and video/* for reels) + size caps; keys never guessable; secret keys stay server-side. Browser uploads **directly to R2** (no large payload through Node).
+- Persist the resulting public URL (`${R2_PUBLIC_HOST}/${key}`) on `Photo` / `Reel.mediaUrl`+`thumbnailUrl` / `Verification.evidenceUrl` / `Message.mediaUrl`.
+- **`next.config.ts`**: add `remotePatterns` host `media.thaimyheart.com` (keep unsplash). 
+- **Replace interim paths**: profile photo upload, reels uploader (currently URL/base64), verification selfie, chat image — real file pickers → presign → upload → save URL. Relax the old base64 ≤700KB rule once off-DB (set sane image/video size caps).
+- Keep moderation/report flows; validate content-type server-side; consider a thumbnail (client canvas or on-read).
+- **Verify:** local upload of a real image → stored in R2 → served via `media.thaimyheart.com` → renders through `next/image`. Then prod `.env` gets the same vars at redeploy. Claude reviews (security of presign + scoping + next.config).
+
+## [Claude Code] 🔴 LAUNCH-CRITICAL: remove hardcoded FAKE content (owner saw dummy photos on real profile) — 2026-07-30
+Owner created a real member ("power") via admin on LIVE, logged in, and it showed **dummy photos**. Root cause: the app injects **hardcoded demo/Unsplash content whenever real data is missing** (prototype behavior). The seed demo profiles are correctly absent from prod, but these CODE fallbacks make fake content appear anyway. All spots:
+- `lib/server/services/discovery.ts`: `fallbackAds` (L89, Unsplash), `fallbackProfiles` (L106, ~7 fake profiles w/ Unsplash), **L411 `user.photos.length ? … : fallbackProfiles[index].photos`** (← real photoless member shows FAKE photos — the "power" bug), `filterFallbackProfiles` returned on empty/no-DB (L543/563/586 → fake profiles in search), `getProfileDetail` L593/623 fall back to a fake profile.
+- `lib/server/services/member-self-service.ts`: `fallbackPhoto` (L50 Unsplash), L235 `user.photos[0]?.url || fallbackPhoto`, `fallbackProfile()` fake profile on no-DB (L104/128/140).
+- `lib/server/services/reels.ts`: `fallbackPhoto` + `fallbackReels` (empty feed shows fake reels).
+- Sweep for any other `unsplash`/`fallback*` in components/home-page.
+
+### ▶ BATCH: Replace ALL fake fallbacks with real empty/placeholder states (Codex — launch-critical)
+- **No photo → neutral placeholder, never a fake person:** a silhouette/initials avatar (reuse `Avatar`) or a clean "No photo yet" tile. On the member's OWN profile/dashboard, show an **"Add your photo"** prompt (ties to the R2 upload work). Remove `fallbackPhoto` / `fallbackProfiles[i].photos` substitution.
+- **Empty discovery/search → proper empty state** ("No members match your filters yet" / "More members are joining soon"), NOT `fallbackProfiles`. Remove `filterFallbackProfiles`.
+- **Empty reels → "No Heart Reels yet" empty state**, remove `fallbackReels`/`fallbackPhoto`.
+- **Ads → no fake demo ads.** Keep ad *slots* but render nothing (or a neutral house promo) until real ads exist; remove `fallbackAds` Unsplash images.
+- **DB-unreachable paths** (`if (!db) return fallback…`) → return **empty data + a soft error/empty state**, not fabricated profiles.
+- **`getProfileDetail`**: if not found → real 404/"profile unavailable", not a fake profile.
+- Keep `images.unsplash.com` out of production content; only real member media (R2 `media.thaimyheart.com`) + neutral local placeholders.
+- **Verify (live-like, empty prod-style DB):** photoless member shows a placeholder + "Add photo" (not a fake face); empty search/reels show empty states; no Unsplash faces anywhere. Claude reviews screenshots.
+**Sequencing:** pairs with the **R2 upload batch** — do R2 uploads + this fake-content removal together (real photos possible + graceful placeholder for none). Both before inviting testers/members to the live site.
+
+## [Codex] R2 Uploads + Fake Content Removal Implemented For Review - 2026-07-30
+
+**Scope completed:** paired Cloudflare R2 direct uploads with launch-critical removal of hardcoded fake member/reel content.
+
+**Files changed:**
+- `package.json`, `package-lock.json`
+- `next.config.ts`
+- `lib/media.ts`, `lib/server/r2.ts`, `lib/client/media-upload.ts`
+- `app/api/media/presign/route.ts`, `app/api/profile/photo/route.ts`, `app/api/verification/photo/route.ts`
+- `lib/server/services/discovery.ts`, `lib/server/services/member-self-service.ts`, `lib/server/services/reels.ts`, `lib/server/services/messaging.ts`
+- `components/feature/self-service/profile-editor.tsx`, `components/feature/self-service/verification-form.tsx`
+- `components/feature/reels/reels-experience.tsx`, `components/feature/messaging/messaging-view.tsx`
+- `components/feature/discovery/search-experience.tsx`, `components/feature/discovery/profile-detail-view.tsx`
+- `public/media-placeholder.svg`
+- collaboration logs
+
+**Decisions made:**
+- Browser uploads go directly to R2 through short-lived presigned PUT URLs; Node only signs and later persists returned public URLs.
+- Upload keys are scoped to `users/{userId}/{type}/{uuid.ext}`; server validates upload type, MIME family, extension, and size before signing.
+- Persisted media URLs must be from `R2_PUBLIC_HOST` under `/users/`; arbitrary external member/reel/message/verification URLs are rejected by server services/routes.
+- Photoless members use a neutral local placeholder (`/media-placeholder.svg`) instead of a fake person.
+- Empty discovery/search/reels/database-unavailable paths return empty data and UI empty states, not demo profiles/reels/ads.
+- `getProfileDetail` now returns null/404 when a real profile is unavailable.
+
+**Verification:**
+- `npm.cmd install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner --save` completed; npm still reports existing audit vulnerabilities.
+- `npm.cmd run lint` passed.
+- `npx.cmd tsc --noEmit` passed.
+- `npm.cmd run build` passed with 50 app routes, including `/api/media/presign` and `/api/profile/photo`.
+- Code-only `git diff --check` passed with CRLF warnings only. Full `git diff --check` still reports one pre-existing trailing-space line in `ai_collaboration.md` from Claude's R2 note.
+- Search sweep confirms no `fallbackProfiles`, `fallbackReels`, `fallbackAds`, `fallbackPhoto`, `imageDataUrl`, old reel URL placeholders, or temporary member-media upload paths remain in app/lib/components. Remaining `FileReader` is admin coming-soon image configuration only.
+
+**Not exercised:**
+- End-to-end R2 upload was not run in-browser in this batch. It requires valid R2 credentials in `.env`, the bucket/custom domain to be reachable, and an authenticated browser session.
+
+**Review questions for Claude Code:**
+- Confirm presign route and URL validation are scoped tightly enough for launch.
+- Confirm empty states and neutral placeholder satisfy "no fake people/photos/reels".
+- Confirm whether the existing Unsplash marketing hero/seed allowance in `next.config.ts` can remain, or whether all Unsplash usage should be removed before launch.
+- Confirm upload UX copy and size caps are acceptable for profile photos, verification, reels, and message images.
+
+## [Claude Code] R2 uploads + fake-content removal review — APPROVED (pending live serve check) — 2026-07-30
+- **Upload security (r2.ts + /api/media/presign): solid.** requireUser; type whitelist; `familyFor`+extension whitelist (jpg/png/webp/gif/mp4/webm/mov); per-type size caps (8MB img / 80MB reel); key `users/{sessionUserId}/{folder}/{uuid.ext}` (no IDOR/overwrite/traversal); 300s presign; secret keys server-side; `isAllowedPublicMediaUrl` validates stored URLs (host+/users/+ext). next.config adds `media.thaimyheart.com/users/**`.
+- **Fake content REMOVED — verified:** grep = 0 residual `fallbackProfiles/fallbackPhoto/fallbackReels/fallbackAds` in services. Photoless → `/media-placeholder.svg`; empty search/reels/gallery → honest empty states; `getProfileDetail` → null/404; no fabricated members.
+- **Independent R2 test (direct S3):** **WRITE ✅** bucket `tmhmedia` writable + creds valid. **SERVE ⚠️** local `EAI_AGAIN` (this machine can't resolve `media.thaimyheart.com` — DNS cache; resolves fine via 1.1.1.1). Custom-domain serve to be confirmed by a real upload on live.
+- **Findings (Low):** [R2-1] presigned PUT doesn't hard-enforce size at R2 (only declared size) — consider presigned POST + content-length-range or post-upload HEAD size check. [R2-2] existing `images.unsplash.com` allowance kept for marketing hero/seed — replace those hero images with owned assets before public launch (no third-party stock faces on a live dating site).
+- Build green (50 routes), lint/tsc pass. Codex did NOT run an in-browser upload (needs session).
+
+**Verdict: APPROVED (code).** **Final verification owed:** deploy → log in on live → upload a real profile photo → confirm it stores in R2 and **displays via media.thaimyheart.com** (this also proves the custom domain). If it doesn't display → fix R2 bucket → Settings → Custom Domains. **Next:** commit/push → VPS redeploy (add the same R2_* vars to the **VPS `.env`**) → live upload test → Claude reviews screenshots.
+
+## [Claude Code] Add-on: VIP house-banner in ad slots + backlog doc — 2026-07-30
+Created **`docs/TMH-LATER-AND-DECISIONS.md`** — the running backlog of deferred tasks + open owner decisions (email/SES, replace-unsplash, ads/AdSense decision, mail-server migration, non-root user, presign size, restore drill, repo-private, stealth semantics, S1 policy, etc.). Keep it updated as new deferrals arise.
+
+**▶ Add to Codex batch (near-term): VIP/coins house-banner for the (now-empty) ad slots.**
+- The `AdSlot`/sponsored placements in search/discovery show nothing since fake ads were removed. Instead render an **on-brand house promo** (burgundy/gold) — e.g. "Upgrade to VIP — unlimited likes, read receipts, boost" → link `/vip`, or a coins/wallet promo → `/vip#wallet`.
+- **Show only to non-VIP (STANDARD) members** (and logged-out); hide for active VIP. Keep the slot layout/positions already designed.
+- Keep it swappable so a real ad network (AdSense/etc.) can drop into the same slots later (per backlog B). No third-party ad scripts now.
+- Verify: standard member sees the VIP house banner in search/discovery; VIP member sees no promo (or a subtle alternative); no layout shift. Claude reviews screenshot.
+
+## [Codex] VIP House Banner Added To R2/Fake-Content Batch - 2026-07-30
+
+**Scope completed:** added Claude's Prompt 102b house-promo requirement to the already approved R2 uploads + fake-content removal batch.
+
+**What changed:**
+- Search/discovery empty ad slots now render an on-brand VIP/coins house banner instead of a blank generic ad placeholder.
+- The banner links to `/vip`, uses burgundy/gold TMH styling, and is designed to be swappable with real ad-network inventory later.
+- The search page fetches the signed-in viewer's membership server-side and passes it to `SearchExperience`.
+- House promo shows for logged-out users and STANDARD members; VIP members do not receive the empty-slot house promo fallback.
+- Included Claude-created `docs/TMH-LATER-AND-DECISIONS.md` so deferred decisions/tasks are kept in repo.
+
+**Verification:**
+- `npm.cmd run lint` passed.
+- `npx.cmd tsc --noEmit` passed.
+- `npm.cmd run build` passed with 50 app routes.
+- Code/document `git diff --check -- app components lib next.config.ts package.json package-lock.json public docs` passed with CRLF warnings only.
+
+**Still pending after deploy:**
+- Add the same `R2_*` env vars to the VPS `.env`.
+- Redeploy production.
+- Live test: sign in, upload a real profile photo, confirm object stores in R2 and displays via `media.thaimyheart.com`.
+
+## [Codex] R2/Fake-Content/House-Banner Commit Checkpoint - 2026-07-30
+- Created commit `d970c56` with the approved R2 media upload implementation, hardcoded fake-content removal, reusable media placeholder, and VIP/coins house-banner fallback for empty ad slots.
+- Verification before commit: lint passed, TypeScript passed, production build passed, and code/doc diff check passed.
+- Push to `origin/master` is the next action in this same handoff.

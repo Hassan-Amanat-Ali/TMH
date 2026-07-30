@@ -1,4 +1,6 @@
 import { prisma, getPrismaClient } from "@/lib/server/prisma";
+import { MEDIA_PLACEHOLDER_SRC } from "@/lib/media";
+import { isAllowedPublicMediaUrl } from "@/lib/server/r2";
 import type { ReportCategory } from "@/lib/prisma/client";
 
 export type ConversationSummary = {
@@ -52,9 +54,6 @@ export type ConversationFilters = {
   archived?: boolean;
 };
 
-const fallbackPhoto = "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80";
-const imageDataUrlPattern = /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=]+$/i;
-const remoteImagePattern = /^https?:\/\/.+\.(png|jpe?g|webp|gif)(\?.*)?$/i;
 
 function orderedPair(userA: string, userB: string) {
   return [userA, userB].sort();
@@ -88,13 +87,9 @@ function scamWarningFor(body: string) {
     : null;
 }
 
-function canUseImageUrl(mediaUrl: string) {
-  return imageDataUrlPattern.test(mediaUrl) || remoteImagePattern.test(mediaUrl);
-}
-
 async function assertImageMessageAllowed(userId: string, conversationId: string, mediaUrl: string) {
-  if (!canUseImageUrl(mediaUrl) || mediaUrl.length > 700_000) {
-    throw new Error("Use a PNG, JPG, WEBP, or GIF image under the temporary upload limit.");
+  if (!isAllowedPublicMediaUrl(mediaUrl, ["image"]) || mediaUrl.length > 2048) {
+    throw new Error("Upload the image through Thai My Heart before sending.");
   }
 
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } });
@@ -236,7 +231,7 @@ export async function listConversations(userId: string, filters: ConversationFil
       id: conversation.id,
       otherUserId: other.id,
       otherName: other.profile?.displayName || other.name || "Member",
-      otherPhoto: other.photos[0]?.url || fallbackPhoto,
+      otherPhoto: other.photos[0]?.url || MEDIA_PLACEHOLDER_SRC,
       otherHeadline: other.profile?.headline || "Start a thoughtful conversation.",
       lastMessage: conversation.messages[0]?.body || "No messages yet.",
       lastMessageAt: relativeDate(conversation.lastMessageAt),
@@ -314,7 +309,7 @@ export async function getConversationDetail(userId: string, conversationId: stri
     id: conversation.id,
     otherUserId: other.id,
     otherName: other.profile?.displayName || other.name || "Member",
-    otherPhoto: other.photos[0]?.url || fallbackPhoto,
+    otherPhoto: other.photos[0]?.url || MEDIA_PLACEHOLDER_SRC,
     otherHeadline: other.profile?.headline || "Start a thoughtful conversation.",
     otherLocation: other.profile?.locationText || "Thailand",
     blocked: blockedByMe || blockedByOther,

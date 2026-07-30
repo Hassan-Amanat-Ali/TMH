@@ -1,6 +1,7 @@
 import { SearchExperience } from "@/components/feature/discovery/search-experience";
 import { getCurrentUser } from "@/lib/server/session";
 import { type DiscoveryFilters, getDiscoveryData } from "@/lib/server/services/discovery";
+import { prisma } from "@/lib/server/prisma";
 import type { Gender } from "@/lib/prisma/client";
 
 function first(value: string | string[] | undefined) {
@@ -40,7 +41,10 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const user = await getCurrentUser();
   const params = await searchParams;
   const filters = parseFilters(params);
-  const data = await getDiscoveryData(user?.id, filters);
+  const [data, viewer] = await Promise.all([
+    getDiscoveryData(user?.id, filters),
+    user ? prisma.user.findUnique({ where: { id: user.id }, select: { membership: true } }) : Promise.resolve(null),
+  ]);
 
-  return <SearchExperience profiles={data.profiles} gridAds={data.gridAds} swipeAds={data.swipeAds} locations={data.locations} savedSearches={data.savedSearches} initialFilters={filters} isSignedIn={Boolean(user)} />;
+  return <SearchExperience profiles={data.profiles} gridAds={data.gridAds} swipeAds={data.swipeAds} locations={data.locations} savedSearches={data.savedSearches} initialFilters={filters} isSignedIn={Boolean(user)} viewerMembership={viewer?.membership || null} />;
 }

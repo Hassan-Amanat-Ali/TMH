@@ -1,5 +1,6 @@
 import { getPrismaClient, prisma } from "@/lib/server/prisma";
 import { Prisma, type Gender, type InteractionType, type MembershipLevel, type ProfileTier } from "@/lib/prisma/client";
+import { MEDIA_PLACEHOLDER_SRC } from "@/lib/media";
 
 export type DiscoveryAd = {
   id: string;
@@ -85,225 +86,6 @@ const discoveryUserInclude = {
 } satisfies Prisma.UserInclude;
 
 type DiscoveryUserRecord = Prisma.UserGetPayload<{ include: typeof discoveryUserInclude }>;
-
-const fallbackAds: DiscoveryAd[] = [
-  {
-    id: "ad-vip-weekend",
-    title: "VIP weekend boost",
-    imageUrl: "https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?auto=format&fit=crop&w=900&q=80",
-    advertiser: "Thai My Heart",
-    targetUrl: "/vip",
-  },
-  {
-    id: "ad-rose-gift",
-    title: "Send a first rose",
-    imageUrl: "https://images.unsplash.com/photo-1518709779341-56cf4535e94b?auto=format&fit=crop&w=900&q=80",
-    advertiser: "Coin Wallet",
-    targetUrl: "/vip",
-  },
-];
-
-export const fallbackProfiles: DiscoveryProfile[] = [
-  {
-    id: "demo-mali",
-    userId: "demo-mali",
-    name: "Mali",
-    age: 29,
-    gender: "WOMAN",
-    seeking: "MAN",
-    location: "Chiang Mai, Thailand",
-    countryCode: "TH",
-    headline: "Kind heart, mountain weekends, real conversation.",
-    bio: "I run a small flower studio near Nimman and love slow Sundays, temple fairs, and cooking northern Thai food for people I trust.",
-    intent: "Serious relationship",
-    profession: "Florist",
-    languages: ["Thai", "English"],
-    interests: ["Cooking", "Hiking", "Live music"],
-    goals: ["Marriage", "Travel partner"],
-    primaryPhoto: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80",
-    photos: [
-      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80",
-      "https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=900&q=80",
-      "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80",
-    ],
-    membership: "VIP",
-    tier: "GOLD",
-    verified: true,
-    online: true,
-    newHere: false,
-    hasReel: true,
-    likes: 148,
-    matchPercent: 94,
-    rankingScore: 94,
-    likedByViewer: false,
-    favouritedByViewer: false,
-  },
-  {
-    id: "demo-nisa",
-    userId: "demo-nisa",
-    name: "Nisa",
-    age: 34,
-    gender: "WOMAN",
-    seeking: "MAN",
-    location: "Bangkok, Thailand",
-    countryCode: "TH",
-    headline: "Warm, direct, and ready to build something steady.",
-    bio: "Marketing manager by day, jazz listener by night. I value honesty, family respect, and a man who keeps his word.",
-    intent: "Long-term",
-    profession: "Marketing manager",
-    languages: ["Thai", "English", "German"],
-    interests: ["Jazz", "Food markets", "Fitness"],
-    goals: ["Family", "Relocation open"],
-    primaryPhoto: "https://images.unsplash.com/photo-1496440737103-cd596325d314?auto=format&fit=crop&w=900&q=80",
-    photos: [
-      "https://images.unsplash.com/photo-1496440737103-cd596325d314?auto=format&fit=crop&w=900&q=80",
-      "https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80",
-    ],
-    membership: "STANDARD",
-    tier: "SILVER",
-    verified: true,
-    online: false,
-    newHere: true,
-    hasReel: false,
-    likes: 92,
-    matchPercent: 88,
-    rankingScore: 88,
-    likedByViewer: false,
-    favouritedByViewer: false,
-  },
-  {
-    id: "demo-arisa",
-    userId: "demo-arisa",
-    name: "Arisa",
-    age: 31,
-    gender: "WOMAN",
-    seeking: "MAN",
-    location: "Phuket, Thailand",
-    countryCode: "TH",
-    headline: "Ocean person. Looking for calm, loyal love.",
-    bio: "Hospitality professional, beach walker, and auntie to three funny nieces. I like practical kindness more than big promises.",
-    intent: "Marriage minded",
-    profession: "Hotel guest relations",
-    languages: ["Thai", "English", "French"],
-    interests: ["Seafood", "Beach walks", "Photography"],
-    goals: ["Marriage", "Shared home"],
-    primaryPhoto: "https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=900&q=80",
-    photos: [
-      "https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=900&q=80",
-      "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=900&q=80",
-    ],
-    membership: "VIP",
-    tier: "GOLD",
-    verified: true,
-    online: true,
-    newHere: false,
-    hasReel: true,
-    likes: 176,
-    matchPercent: 91,
-    rankingScore: 91,
-    likedByViewer: false,
-    favouritedByViewer: false,
-  },
-  {
-    id: "demo-pim",
-    userId: "demo-pim",
-    name: "Pim",
-    age: 27,
-    gender: "WOMAN",
-    seeking: "MAN",
-    location: "Khon Kaen, Thailand",
-    countryCode: "TH",
-    headline: "Teacher, reader, and patient optimist.",
-    bio: "I teach primary school and spend weekends with family. I am shy at first, but very playful once I feel safe.",
-    intent: "Serious dating",
-    profession: "Teacher",
-    languages: ["Thai", "English"],
-    interests: ["Reading", "Cafe hopping", "Family"],
-    goals: ["Marriage", "Children someday"],
-    primaryPhoto: "https://images.unsplash.com/photo-1520813792240-56fc4a3765a7?auto=format&fit=crop&w=900&q=80",
-    photos: [
-      "https://images.unsplash.com/photo-1520813792240-56fc4a3765a7?auto=format&fit=crop&w=900&q=80",
-      "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=900&q=80",
-    ],
-    membership: "STANDARD",
-    tier: "SILVER",
-    verified: false,
-    online: false,
-    newHere: true,
-    hasReel: false,
-    likes: 64,
-    matchPercent: 83,
-    rankingScore: 83,
-    likedByViewer: false,
-    favouritedByViewer: false,
-  },
-  {
-    id: "demo-sirin",
-    userId: "demo-sirin",
-    name: "Sirin",
-    age: 38,
-    gender: "WOMAN",
-    seeking: "MAN",
-    location: "London, United Kingdom",
-    countryCode: "GB",
-    headline: "Thai in London, still close to home.",
-    bio: "Nurse, mum of one grown-up son, and weekend market explorer. I want a thoughtful partner who enjoys both Thai and British life.",
-    intent: "Companionship",
-    profession: "Nurse",
-    languages: ["Thai", "English"],
-    interests: ["Gardens", "Thai cooking", "Museums"],
-    goals: ["Life partner", "Travel"],
-    primaryPhoto: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=900&q=80",
-    photos: [
-      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=900&q=80",
-      "https://images.unsplash.com/photo-1512316609839-ce289d3eba0a?auto=format&fit=crop&w=900&q=80",
-    ],
-    membership: "STANDARD",
-    tier: "BRONZE",
-    verified: true,
-    online: true,
-    newHere: false,
-    hasReel: false,
-    likes: 119,
-    matchPercent: 86,
-    rankingScore: 86,
-    likedByViewer: false,
-    favouritedByViewer: false,
-  },
-  {
-    id: "demo-kan",
-    userId: "demo-kan",
-    name: "Kan",
-    age: 30,
-    gender: "LADYBOY",
-    seeking: "MAN",
-    location: "Pattaya, Thailand",
-    countryCode: "TH",
-    headline: "Confident, loyal, and looking for respect first.",
-    bio: "Beauty stylist with a soft spot for karaoke and honest men. Chemistry matters, but respect matters more.",
-    intent: "Long-term",
-    profession: "Beauty stylist",
-    languages: ["Thai", "English"],
-    interests: ["Karaoke", "Fashion", "Street food"],
-    goals: ["Stable partner", "Travel"],
-    primaryPhoto: "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80",
-    photos: [
-      "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80",
-      "https://images.unsplash.com/photo-1509967419530-da38b4704bc6?auto=format&fit=crop&w=900&q=80",
-    ],
-    membership: "VIP",
-    tier: "GOLD",
-    verified: true,
-    online: false,
-    newHere: false,
-    hasReel: true,
-    likes: 133,
-    matchPercent: 89,
-    rankingScore: 89,
-    likedByViewer: false,
-    favouritedByViewer: false,
-  },
-];
 
 function parseList(value?: string | null): string[] {
   if (!value) return [];
@@ -400,7 +182,7 @@ function buildDiscoveryWhere(viewerId?: string | null, filters: DiscoveryFilters
 
 function mapUserToDiscoveryProfile(
   user: DiscoveryUserRecord,
-  index: number,
+  _index: number,
   liked: Set<string>,
   favourites: Set<string>,
   viewerCountryCode?: string | null
@@ -408,7 +190,7 @@ function mapUserToDiscoveryProfile(
   if (!user.profile) return null;
 
   const profile = user.profile;
-  const photos = user.photos.length ? user.photos.map((photo) => photo.url) : fallbackProfiles[index % fallbackProfiles.length].photos;
+  const photos = user.photos.map((photo) => photo.url);
   const verified = user.verifications.length > 0;
   const online = profile.stealthMode ? false : Boolean(user.lastActiveAt && Date.now() - user.lastActiveAt.getTime() < 1000 * 60 * 15);
   const matchPercent = estimateMatch({
@@ -438,7 +220,7 @@ function mapUserToDiscoveryProfile(
     languages: parseList(profile.languages),
     interests: parseList(profile.interests),
     goals: parseList(profile.goals),
-    primaryPhoto: photos[0],
+    primaryPhoto: photos[0] || MEDIA_PLACEHOLDER_SRC,
     photos,
     membership: user.membership,
     tier: profile.tier,
@@ -452,20 +234,6 @@ function mapUserToDiscoveryProfile(
     likedByViewer: liked.has(user.id),
     favouritedByViewer: favourites.has(user.id),
   };
-}
-
-function filterFallbackProfiles(filters: DiscoveryFilters = {}) {
-  return fallbackProfiles.filter((profile) => {
-    if (filters.gender && filters.gender !== "ALL" && profile.gender !== filters.gender) return false;
-    if (filters.minAge && profile.age < filters.minAge) return false;
-    if (filters.maxAge && profile.age > filters.maxAge) return false;
-    if (filters.countryCode && profile.countryCode !== filters.countryCode) return false;
-    if (filters.hasReelOnly && !profile.hasReel) return false;
-    if (filters.onlineOnly && !profile.online) return false;
-    if (filters.verifiedOnly && !profile.verified) return false;
-    if (filters.newOnly && !profile.newHere) return false;
-    return true;
-  });
 }
 
 async function getViewerInteractions(viewerId?: string | null) {
@@ -540,7 +308,7 @@ export async function deleteSavedSearch(userId: string, id: string) {
 export async function getDiscoveryData(viewerId?: string | null, filters: DiscoveryFilters = {}): Promise<DiscoveryData> {
   const db = getPrismaClient();
   if (!db) {
-    return { profiles: filterFallbackProfiles(filters), gridAds: fallbackAds, swipeAds: fallbackAds, locations: [], savedSearches: [] };
+    return { profiles: [], gridAds: [], swipeAds: [], locations: [], savedSearches: [] };
   }
 
   try {
@@ -560,7 +328,7 @@ export async function getDiscoveryData(viewerId?: string | null, filters: Discov
     ]);
 
     if (!users.length) {
-      return { profiles: filterFallbackProfiles(filters), gridAds: gridAds.length ? gridAds : fallbackAds, swipeAds: swipeAds.length ? swipeAds : fallbackAds, locations, savedSearches };
+      return { profiles: [], gridAds, swipeAds, locations, savedSearches };
     }
 
     const liked = new Set(interactions.filter((item) => item.type === "LIKE").map((item) => item.toId));
@@ -577,20 +345,20 @@ export async function getDiscoveryData(viewerId?: string | null, filters: Discov
 
     return {
       profiles,
-      gridAds: gridAds.length ? gridAds : fallbackAds,
-      swipeAds: swipeAds.length ? swipeAds : fallbackAds,
+      gridAds,
+      swipeAds,
       locations,
       savedSearches,
     };
   } catch {
-    return { profiles: filterFallbackProfiles(filters), gridAds: fallbackAds, swipeAds: fallbackAds, locations: [], savedSearches: [] };
+    return { profiles: [], gridAds: [], swipeAds: [], locations: [], savedSearches: [] };
   }
 }
 
 export async function getProfileDetail(id: string, viewerId?: string | null): Promise<DiscoveryProfile | null> {
   const db = getPrismaClient();
   if (!db) {
-    return fallbackProfiles.find((profile) => profile.userId === id || profile.id === id) ?? null;
+    return null;
   }
 
   try {
@@ -620,7 +388,7 @@ export async function getProfileDetail(id: string, viewerId?: string | null): Pr
     const favourites = new Set(interactions.filter((item) => item.type === "FAVOURITE").map((item) => item.toId));
     return mapUserToDiscoveryProfile(user, 0, liked, favourites, viewerCountryCode);
   } catch {
-    return fallbackProfiles.find((profile) => profile.userId === id || profile.id === id) ?? null;
+    return null;
   }
 }
 

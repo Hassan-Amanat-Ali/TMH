@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" role="img" aria-labelledby="title desc">
+  <title id="title">Thai My Heart member placeholder</title>
+  <desc id="desc">A neutral profile placeholder for members who have not uploaded a photo yet.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#f8efe5"/>
+      <stop offset="0.58" stop-color="#ead3c4"/>
+      <stop offset="1" stop-color="#d6a8aa"/>
+    </linearGradient>
+    <linearGradient id="shape" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#7a2233"/>
+      <stop offset="1" stop-color="#4a1b26"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="1000" fill="url(#bg)"/>
+  <circle cx="400" cy="330" r="145" fill="url(#shape)" opacity="0.88"/>
+  <path fill="url(#shape)" opacity="0.88" d="M155 850c22-176 124-292 245-292s223 116 245 292H155z"/>
+  <circle cx="624" cy="168" r="72" fill="#e9c776" opacity="0.46"/>
+  <circle cx="176" cy="225" r="42" fill="#ffffff" opacity="0.28"/>
+  <path fill="none" stroke="#f8efe5" stroke-linecap="round" stroke-width="18" opacity="0.7" d="M293 760c49 34 165 34 214 0"/>
+</svg>

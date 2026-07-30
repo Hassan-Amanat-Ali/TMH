@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
-import { AlertTriangle, Crown, Eye, Loader2, Plus, Send, Sparkles, Video } from "lucide-react";
+import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import { AlertTriangle, Crown, Eye, Loader2, Plus, Send, Sparkles, UploadCloud, Video } from "lucide-react";
 import { Badge, Button, Card, Input, Toast } from "@/components/ui";
 import { cn } from "@/lib/cn";
+import { uploadMediaFile } from "@/lib/client/media-upload";
 import type { getReelFeed } from "@/lib/server/services/reels";
 
 type ReelFeedData = Awaited<ReturnType<typeof getReelFeed>>;
@@ -26,8 +27,8 @@ export function ReelsExperience({ initialData }: { initialData: ReelFeedData }) 
   const [data, setData] = useState(initialData);
   const [selectedId, setSelectedId] = useState(initialData.reels[0]?.id || "");
   const [reply, setReply] = useState("");
-  const [mediaUrl, setMediaUrl] = useState("");
-  const [thumbnailUrl, setThumbnailUrl] = useState("");
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [caption, setCaption] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
   const [reportCategory, setReportCategory] = useState("HARASSMENT");
@@ -61,11 +62,41 @@ export function ReelsExperience({ initialData }: { initialData: ReelFeedData }) 
     }
   }
 
+  function selectMedia(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] || null;
+    event.target.value = "";
+    setNotice(null);
+    if (!file) return;
+    if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+      setNotice({ tone: "warning", text: "Choose an image or video file for your reel." });
+      return;
+    }
+    setMediaFile(file);
+  }
+
+  function selectThumbnail(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] || null;
+    event.target.value = "";
+    setNotice(null);
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setNotice({ tone: "warning", text: "Choose an image file for the thumbnail." });
+      return;
+    }
+    setThumbnailFile(file);
+  }
+
   async function submitCreate(event: FormEvent) {
     event.preventDefault();
+    if (!mediaFile) {
+      setNotice({ tone: "warning", text: "Choose a reel image or video first." });
+      return;
+    }
     setPending("create");
     setNotice(null);
     try {
+      const mediaUrl = await uploadMediaFile(mediaFile, "reel");
+      const thumbnailUrl = thumbnailFile ? await uploadMediaFile(thumbnailFile, "reel-thumbnail") : "";
       const response = await fetch("/api/reels", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -73,8 +104,8 @@ export function ReelsExperience({ initialData }: { initialData: ReelFeedData }) 
       });
       const result = await response.json().catch(() => null);
       if (!response.ok || !result?.ok) throw new Error(result?.error || "Could not create reel.");
-      setMediaUrl("");
-      setThumbnailUrl("");
+      setMediaFile(null);
+      setThumbnailFile(null);
       setCaption("");
       setNotice({ tone: "success", text: "Heart Reel posted for 24 hours." });
       await refreshFeed(result.id);
@@ -258,8 +289,18 @@ export function ReelsExperience({ initialData }: { initialData: ReelFeedData }) 
               <Plus className="text-burgundy" />
             </div>
             <form onSubmit={submitCreate} className="mt-5 space-y-3">
-              <Input value={mediaUrl} onChange={(event) => setMediaUrl(event.target.value)} placeholder="Media URL" />
-              <Input value={thumbnailUrl} onChange={(event) => setThumbnailUrl(event.target.value)} placeholder="Thumbnail URL (optional)" />
+              <label className="grid min-h-24 cursor-pointer place-items-center rounded-2xl border border-dashed border-gold/45 bg-cream px-4 py-5 text-center text-sm font-bold text-burgundy">
+                <span className="grid justify-items-center gap-2">
+                  <UploadCloud className="h-5 w-5" />
+                  <span>{mediaFile ? mediaFile.name : "Choose reel image or video"}</span>
+                  <span className="text-xs font-semibold text-mauve-dark">Images or short videos upload to TMH media storage.</span>
+                </span>
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime" className="sr-only" disabled={pending === "create"} onChange={selectMedia} />
+              </label>
+              <label className="grid min-h-20 cursor-pointer place-items-center rounded-2xl border border-cream-300 bg-white px-4 py-4 text-center text-sm font-bold text-burgundy">
+                <span>{thumbnailFile ? thumbnailFile.name : "Optional thumbnail image"}</span>
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" disabled={pending === "create"} onChange={selectThumbnail} />
+              </label>
               <textarea
                 value={caption}
                 onChange={(event) => setCaption(event.target.value)}
@@ -267,7 +308,7 @@ export function ReelsExperience({ initialData }: { initialData: ReelFeedData }) 
                 placeholder="Caption"
                 className="min-h-24 w-full rounded-2xl border border-cream-300 bg-white px-4 py-3 text-sm text-ink outline-none transition placeholder:text-mauve focus:border-gold focus:ring-2 focus:ring-gold/25"
               />
-              <Button type="submit" disabled={pending === "create" || data.remainingToday <= 0} className="w-full">
+              <Button type="submit" disabled={pending === "create" || data.remainingToday <= 0 || !mediaFile} className="w-full">
                 {pending === "create" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 Post for 24 hours
               </Button>

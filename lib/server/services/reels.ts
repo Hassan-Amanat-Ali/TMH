@@ -1,31 +1,12 @@
 import { MediaType, MembershipLevel, Prisma, type ReelStatus, type ReportCategory } from "@/lib/prisma/client";
 import { prisma, getPrismaClient } from "@/lib/server/prisma";
+import { MEDIA_PLACEHOLDER_SRC } from "@/lib/media";
+import { isAllowedPublicMediaUrl } from "@/lib/server/r2";
 import { getOrCreateConversation, sendConversationMessage } from "@/lib/server/services/messaging";
 
 const REEL_TTL_MS = 24 * 60 * 60 * 1000;
 const STANDARD_DAILY_LIMIT = 3;
 const VIP_DAILY_LIMIT = 8;
-const fallbackPhoto = "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80";
-const fallbackReels: ReelCard[] = [
-  {
-    id: "fallback-mali-reel",
-    authorId: "demo-mali",
-    authorName: "Mali",
-    authorAge: 29,
-    authorPhoto: fallbackPhoto,
-    authorLocation: "Chiang Mai, Thailand",
-    membership: MembershipLevel.VIP,
-    mediaUrl: fallbackPhoto,
-    mediaType: MediaType.IMAGE,
-    thumbnailUrl: fallbackPhoto,
-    caption: "A small hello from my day.",
-    viewsCount: 12000,
-    viewedByMe: false,
-    createdAt: new Date().toISOString(),
-    expiresAt: new Date(Date.now() + REEL_TTL_MS).toISOString(),
-    expiresIn: "24h",
-  },
-];
 
 const reelInclude = {
   user: {
@@ -66,19 +47,16 @@ export type ReelFeed = {
   isVip: boolean;
 };
 
-const remoteMediaPattern = /^https?:\/\/\S+$/i;
-const dataImagePattern = /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=]+$/i;
-
 function inferMediaType(mediaUrl: string): MediaType {
   return /\.(mp4|webm|mov)(\?.*)?$/i.test(mediaUrl) ? MediaType.VIDEO : MediaType.IMAGE;
 }
 
-function validateMediaUrl(mediaUrl: string) {
-  if (!mediaUrl || mediaUrl.length > 700_000) {
-    throw new Error("Reel media is required.");
+function validateMediaUrl(mediaUrl: string, allowVideo = true) {
+  if (!mediaUrl || mediaUrl.length > 2048) {
+    throw new Error("Upload a reel file first.");
   }
-  if (!remoteMediaPattern.test(mediaUrl) && !dataImagePattern.test(mediaUrl)) {
-    throw new Error("Use a PNG, JPG, WEBP, GIF, MP4, WEBM, or MOV URL for this temporary reel uploader.");
+  if (!isAllowedPublicMediaUrl(mediaUrl, allowVideo ? ["image", "video"] : ["image"])) {
+    throw new Error("Upload media through Thai My Heart before posting a reel.");
   }
 }
 
@@ -96,7 +74,7 @@ function mapReel(reel: ReelRecord, viewerId?: string | null): ReelCard | null {
     authorId: reel.userId,
     authorName: profile.displayName || reel.user.name || "Member",
     authorAge: profile.age || 30,
-    authorPhoto: reel.user.photos[0]?.url || fallbackPhoto,
+    authorPhoto: reel.user.photos[0]?.url || MEDIA_PLACEHOLDER_SRC,
     authorLocation: profile.locationText || "Thailand",
     membership: reel.user.membership,
     mediaUrl: reel.mediaUrl,
@@ -127,7 +105,7 @@ async function getDailyLimit(userId: string) {
 export async function getReelFeed(viewerId?: string | null, limit = 24): Promise<ReelFeed> {
   const db = getPrismaClient();
   if (!db) {
-    return { reels: fallbackReels, dailyLimit: STANDARD_DAILY_LIMIT, createdToday: 0, remainingToday: STANDARD_DAILY_LIMIT, isVip: false };
+    return { reels: [], dailyLimit: STANDARD_DAILY_LIMIT, createdToday: 0, remainingToday: STANDARD_DAILY_LIMIT, isVip: false };
   }
 
   await expireOldReels();
@@ -166,7 +144,7 @@ export async function getReelFeed(viewerId?: string | null, limit = 24): Promise
   const mapped = reels.map((reel) => mapReel(reel, viewerId)).filter((reel): reel is ReelCard => reel !== null);
 
   return {
-    reels: mapped.length ? mapped : fallbackReels,
+    reels: mapped,
     dailyLimit: quota.dailyLimit,
     createdToday,
     remainingToday: Math.max(0, quota.dailyLimit - createdToday),
@@ -179,7 +157,7 @@ export async function createReel(userId: string, input: { mediaUrl: string; thum
   const thumbnailUrl = input.thumbnailUrl?.trim() || null;
   const caption = input.caption?.trim().slice(0, 220) || null;
   validateMediaUrl(mediaUrl);
-  if (thumbnailUrl) validateMediaUrl(thumbnailUrl);
+  if (thumbnailUrl) validateMediaUrl(thumbnailUrl, false);
 
   const user = await prisma.user.findFirst({
     where: { id: userId, role: "MEMBER", status: "ACTIVE" },

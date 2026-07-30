@@ -1,4 +1,5 @@
 import { getPrismaClient } from "@/lib/server/prisma";
+import { MEDIA_PLACEHOLDER_SRC } from "@/lib/media";
 
 export type MemberProfileForm = {
   name: string;
@@ -47,7 +48,6 @@ export type EngagementProfile = {
   createdAt: string;
 };
 
-const fallbackPhoto = "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80";
 
 function parseList(value?: string | null) {
   if (!value) return "";
@@ -101,20 +101,20 @@ export function profilePatchToData(input: Partial<MemberProfileForm>) {
   };
 }
 
-function fallbackProfile(): MemberProfileForm {
+function emptyProfile(): MemberProfileForm {
   return {
     name: "Member",
-    displayName: "Member",
-    headline: "Ready to meet someone kind.",
-    bio: "Your profile will appear here once the database is connected.",
-    intent: "Serious dating",
-    locationText: "Thailand",
-    countryCode: "TH",
+    displayName: "",
+    headline: "",
+    bio: "",
+    intent: "",
+    locationText: "",
+    countryCode: "",
     profession: "",
-    languages: "Thai, English",
-    interests: "Travel, Food, Family",
-    goals: "Long-term relationship",
-    completion: 62,
+    languages: "",
+    interests: "",
+    goals: "",
+    completion: 0,
     membership: "STANDARD",
     coinBalance: 0,
     photoCount: 0,
@@ -125,7 +125,7 @@ function fallbackProfile(): MemberProfileForm {
 
 export async function getOwnProfile(userId: string): Promise<MemberProfileForm> {
   const db = getPrismaClient();
-  if (!db) return fallbackProfile();
+  if (!db) return emptyProfile();
 
   const user = await db.user.findUnique({
     where: { id: userId },
@@ -137,7 +137,7 @@ export async function getOwnProfile(userId: string): Promise<MemberProfileForm> 
       verifications: { where: { type: "PHOTO" }, orderBy: { submittedAt: "desc" }, take: 1 },
     },
   });
-  if (!user) return fallbackProfile();
+  if (!user) return emptyProfile();
 
   return {
     name: user.name || user.email,
@@ -232,7 +232,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
       name: user.profile?.displayName || user.name || "Member",
       age: user.profile?.age || 30,
       location: user.profile?.locationText || "Thailand",
-      photo: user.photos[0]?.url || fallbackPhoto,
+      photo: user.photos[0]?.url || MEDIA_PLACEHOLDER_SRC,
       matchPercent: 86 + index,
     })),
   };
@@ -263,7 +263,7 @@ export async function getLikedYou(userId: string): Promise<EngagementProfile[]> 
     name: like.from.profile?.displayName || like.from.name || "Member",
     age: like.from.profile?.age || 30,
     location: like.from.profile?.locationText || "Thailand",
-    photo: like.from.photos[0]?.url || fallbackPhoto,
+    photo: like.from.photos[0]?.url || MEDIA_PLACEHOLDER_SRC,
     headline: like.from.profile?.headline || "Liked your profile.",
     createdAt: relativeDate(like.createdAt),
   }));
@@ -294,7 +294,7 @@ export async function getFavourites(userId: string): Promise<EngagementProfile[]
     name: favourite.to.profile?.displayName || favourite.to.name || "Member",
     age: favourite.to.profile?.age || 30,
     location: favourite.to.profile?.locationText || "Thailand",
-    photo: favourite.to.photos[0]?.url || fallbackPhoto,
+    photo: favourite.to.photos[0]?.url || MEDIA_PLACEHOLDER_SRC,
     headline: favourite.to.profile?.headline || "Saved favourite.",
     createdAt: relativeDate(favourite.createdAt),
   }));
@@ -324,7 +324,7 @@ export async function getVisitors(userId: string): Promise<EngagementProfile[]> 
     name: visit.visitor.profile?.displayName || visit.visitor.name || "Member",
     age: visit.visitor.profile?.age || 30,
     location: visit.visitor.profile?.locationText || "Thailand",
-    photo: visit.visitor.photos[0]?.url || fallbackPhoto,
+    photo: visit.visitor.photos[0]?.url || MEDIA_PLACEHOLDER_SRC,
     headline: visit.visitor.profile?.headline || "Viewed your profile.",
     createdAt: relativeDate(visit.createdAt),
   }));
