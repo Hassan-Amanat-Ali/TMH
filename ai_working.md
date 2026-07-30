@@ -1234,3 +1234,8 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - Commit checkpoint: created commit `d970c56` (`feat: add r2 media uploads`) for the Claude-approved R2 media upload, fake-content removal, and VIP/coins house-banner batch.
 - Verification already completed before commit: `npm.cmd run lint`, `npx.cmd tsc --noEmit`, `npm.cmd run build`, and scoped `git diff --check` passed.
 - Next action in this same cycle: amend this log checkpoint into the commit, push `master` to `origin/master`, then owner can redeploy VPS and run the live R2 upload/display test.
+
+## Prompt 103 Codex
+- Push checkpoint: pushed amended commit `8c131a5` (`feat: add r2 media uploads`) from local `master` to `origin/master`.
+- Owner/VPS next steps: pull `origin/master`, ensure R2 env vars exist in `/var/www/websites/tmh/.env`, run `npm ci`, `npm run build`, `pm2 restart tmh --update-env`, then live-test profile photo upload/display via `media.thaimyheart.com`.
+- Claude review next: after owner redeploys and tests upload, review live UI/media behavior and the house-banner treatment in empty ad slots.

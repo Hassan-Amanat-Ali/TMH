@@ -2896,3 +2896,8 @@ Created **`docs/TMH-LATER-AND-DECISIONS.md`** — the running backlog of deferre
 - Created commit `d970c56` with the approved R2 media upload implementation, hardcoded fake-content removal, reusable media placeholder, and VIP/coins house-banner fallback for empty ad slots.
 - Verification before commit: lint passed, TypeScript passed, production build passed, and code/doc diff check passed.
 - Push to `origin/master` is the next action in this same handoff.
+
+## [Codex] R2/Fake-Content/House-Banner Batch Pushed - 2026-07-30
+- Pushed commit `8c131a5` (`feat: add r2 media uploads`) to `origin/master`.
+- Included: Cloudflare R2 presigned uploads, media URL validation, profile/verification/reel/message attachment upload flows, fake demo fallback removal, media placeholder, and VIP/coins house-banner fallback for empty ad slots.
+- Remaining external verification: after VPS deploy and `.env` R2 values are present, owner should test real upload/display from the live site. If upload fails, first checks are DNS/custom domain for `media.thaimyheart.com`, R2 CORS, and PM2 environment refresh.
