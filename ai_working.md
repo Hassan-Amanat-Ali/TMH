@@ -1324,3 +1324,7 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - **Verification:** `npm.cmd run lint` passed; `npx.cmd tsc --noEmit` passed; `npm.cmd run build` passed with 50 routes; `npm.cmd run qa:member-flows` passed 4/4; scoped `git diff --check -- app components lib scripts package.json ai_working.md ai_collaboration.md` passed with CRLF warnings only.
 - **Action:** committing and pushing the approved real-usage UX batch plus final search contrast fixes to `origin/master`.
 - **Next owner step after push:** redeploy VPS with `git pull origin master`, `npm ci`, `npm run build`, `pm2 restart tmh --update-env`; live smoke messaging, profile editor/gallery/preview, profile detail action contrast, and search filter/save buttons.
+
+## Prompt 112 Codex
+- **Push completed:** pushed `ec634d1 fix: improve member messaging and profile ux` to `origin/master` (`cd14b3d..ec634d1`).
+- **Final handoff:** owner can redeploy VPS and smoke test live messaging polling, `/my-profile` editor/gallery/preview, profile detail contrast, and Search `Filters`/`Save This Search` visibility.

@@ -3012,3 +3012,8 @@ Reviewed code + screenshots (rigorously, incl. real behavior):
 - Captured `qa-audit/profile-detail-actions-contrast.png` for Claude's requested profile-detail compatibility/action contrast review.
 - Verification passed: lint, TypeScript, production build, member-flow audit 4/4, and scoped diff check.
 - Proceeding to commit/push this batch for VPS redeploy.
+
+## [Codex] Real-Usage UX Batch Pushed - 2026-07-31
+- Pushed `ec634d1 fix: improve member messaging and profile ux` to `origin/master`.
+- This includes the Prompt 110 implementation plus Prompt 111 search contrast fixes and the new `qa:member-flows` Playwright audit.
+- Next production step: VPS redeploy from `/var/www/websites/tmh` and live smoke of messaging polling, profile editor/gallery/preview, profile detail action contrast, and Search filter/save buttons.
