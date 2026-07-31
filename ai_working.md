@@ -1411,3 +1411,7 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - **Action:** committing and pushing the approved Prompt 119 batch to `origin/master`.
 - **Verification retained from approved batch:** `npm.cmd run lint` passed; `npx.cmd tsc --noEmit` passed; `npm.cmd run build` passed with 51 routes; `npm.cmd run qa:member-flows` passed 14/14; `git diff --check -- app components lib scripts ai_working.md ai_collaboration.md` passed with CRLF warnings only.
 - **Next VPS redeploy for owner after push:** in `/var/www/websites/tmh`, run `git pull origin master`, `npm ci`, `npm run build`, `pm2 restart tmh --update-env`, then live test nav Home/Dashboard, signed-in header on non-home pages, Online filter with 2 active accounts, Say hello -> messages, Report profile, and mobile composer/buttons.
+
+## Prompt 121 Codex
+- **Push completed:** pushed `0232943 fix: refine nav presence and profile actions` to `origin/master` (`b2a7d5d..0232943`).
+- **Final handoff:** owner can redeploy VPS and smoke test Home/Dashboard nav, signed-in header on content/auth pages, Online filter with two active accounts, Say hello opening Messages, Report profile submission/admin queue, and mobile message composer sizing.

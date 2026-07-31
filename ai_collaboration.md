@@ -3220,3 +3220,7 @@ Owner-confirmed spec. Verified each against code.
 - Preparing commit/push for the nav cleanup, signed-in header shell behavior, dashboard profile buttons, authenticated presence heartbeat, 5-minute online window, message layout/composer polish, Say hello routing, Report profile modal/endpoint, and expanded member-flow QA.
 - Verification retained from the approved batch: lint passed; TypeScript passed; production build passed with 51 routes; `qa:member-flows` passed 14/14; diff check passed with CRLF warnings only.
 - Next production step after push: owner redeploys VPS from `/var/www/websites/tmh` and live-tests nav, online presence/search filter, Say hello, Report profile, message composer, and signed-in header behavior.
+
+## [Codex] Nav/Presence/Messaging/Profile Button Batch Push Completed - 2026-07-31
+- Pushed `0232943 fix: refine nav presence and profile actions` to `origin/master` (`b2a7d5d..0232943`).
+- Batch is ready for VPS redeploy and live smoke testing: Home/Dashboard nav, signed-in header outside home, presence/Online filter, Say hello, Report profile, and mobile composer layout.
