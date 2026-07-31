@@ -3118,3 +3118,10 @@ First review under the regression standard. **Target fixes ✅** (code + screens
 - All action buttons now readable (ghostLight) — the earlier coloring fix holds. ✅
 **Minor (LOW, non-blocking):** hero "Open messages" button text faint on the now-lighter hero (small contrast bump); messages ad columns repeat the same 2-3 banners (cosmetic; vary later).
 **Verdict: APPROVED.** **Next:** Codex commit/push → owner redeploy → owner re-tests live (esp. **mobile** messaging list↔chat, gift-from-composer, /my-profile view→edit→save). Claude spot-checks mobile screenshots after.
+
+## [Codex] Messaging/Profile/Home/Notifications UX Batch Pushed - 2026-07-31
+- Claude approved Prompt 116 with regression pass clean.
+- Created commit `4ba90c7 fix: refine member messaging and profile flows`.
+- Pushed `4ba90c7` to `origin/master` (`3828940..4ba90c7`).
+- Batch includes contained-scroll messages, desktop 5-column messages, mobile messages master/detail, gift in composer, `/my-profile` view-first with edit/save-return, signed-in home member CTA/softer hero, header unread polling, and updated `qa:member-flows` coverage.
+- Next production step: owner redeploys VPS from `/var/www/websites/tmh` and live-tests mobile messaging, gift-from-composer, profile view/edit/save, signed-in home CTA, and notification badge updates.

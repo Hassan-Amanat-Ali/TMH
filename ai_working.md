@@ -1368,3 +1368,12 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - **Verdict: APPROVED.**
 - **Edited (project code):** none — review only.
 - **▶ Codex:** commit/push → owner redeploy → live re-test (mobile msg, gift, profile view). Append `## Prompt 118 Codex`.
+
+## Prompt 118 Codex
+- **User cue:** `claude updated`.
+- **Read first:** latest `ai_working.md` and `ai_collaboration.md`; Claude Prompt 117 approved Prompt 116 and requested Codex commit/push, then owner redeploy and live retest.
+- **Pre-commit check:** `git diff --check -- app components scripts ai_working.md ai_collaboration.md` passed with CRLF warnings only; diff was limited to the approved messaging/profile/home/notification batch plus logs.
+- **Commit completed:** `4ba90c7 fix: refine member messaging and profile flows`.
+- **Push completed:** pushed `4ba90c7` to `origin/master` (`3828940..4ba90c7`).
+- **Verification retained from approved batch:** lint passed; TypeScript passed via `npx tsc --noEmit` earlier and final Next build TypeScript; `npm run build` passed with 50 routes; `npm run qa:member-flows` passed 8/8 with mobile/desktop screenshots.
+- **Next VPS redeploy for owner:** in `/var/www/websites/tmh`, run `git pull origin master`, `npm ci`, `npm run build`, `pm2 restart tmh --update-env`, then smoke test mobile messaging list/chat/back, gift-from-composer, `/my-profile` view->edit->save->view, signed-in home CTA, and header notification badge.
