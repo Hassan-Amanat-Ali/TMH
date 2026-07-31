@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { Archive, Ban, Flag, ImagePlus, Languages, Send, Star, Tag, Undo2, X } from "lucide-react";
+import { Archive, ArrowLeft, Ban, Crown, Flag, ImagePlus, Languages, Send, Star, Tag, Undo2, X } from "lucide-react";
 import { Button, Card, Toast } from "@/components/ui";
 import { SendGiftButton, type GiftOption } from "@/components/feature/economy/send-gift-button";
 import { uploadMediaFile } from "@/lib/client/media-upload";
@@ -38,6 +38,7 @@ export function MessagingView({
   const [imagePreviewUrl, setImagePreviewUrl] = useState("");
   const [translations, setTranslations] = useState<Record<string, string>>({});
   const activeIdRef = useRef(initialConversation?.id || "");
+  const listVisibleOnMobile = !active;
 
   const refreshConversations = useCallback(async () => {
     const params = new URLSearchParams();
@@ -78,6 +79,15 @@ export function MessagingView({
     void fetch(`/api/messages/conversations/${conversationId}/read`, { method: "POST" });
     setConversations((items) => items.map((item) => item.id === conversationId ? { ...item, unreadCount: 0 } : item));
   }, [label]);
+
+  const clearActiveConversation = useCallback(() => {
+    activeIdRef.current = "";
+    setActive(null);
+    setLabel("");
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", "/messages");
+    }
+  }, []);
 
   useEffect(() => {
     activeIdRef.current = active?.id || "";
@@ -232,10 +242,19 @@ export function MessagingView({
   }
 
   const messages: ChatMessage[] = active?.messages || [];
+  const adBanners = [
+    { title: "VIP Match Boost", body: "Stand higher in search and see who already likes you.", href: "/vip" },
+    { title: "Coin Wallet", body: "Keep gifts ready for the conversations that feel promising.", href: "/vip#wallet" },
+    { title: "Read Receipts", body: "Upgrade when you want clearer signals in serious chats.", href: "/vip" },
+  ];
 
   return (
-    <div className="mx-auto grid max-w-7xl gap-5 px-4 py-6 sm:px-6 lg:grid-cols-[300px_1fr_300px] lg:px-8">
-      <Card className="h-fit bg-white p-4">
+    <div className="mx-auto grid h-[calc(100dvh-82px)] max-w-[1680px] gap-4 overflow-hidden px-4 py-4 sm:px-6 lg:grid-cols-[130px_260px_minmax(420px,1fr)_130px_130px] lg:px-8">
+      <aside className="hidden min-h-0 space-y-3 overflow-y-auto lg:block">
+        {adBanners.slice(0, 3).map((banner) => <MessagingHouseBanner key={banner.title} {...banner} />)}
+      </aside>
+
+      <Card className={`${listVisibleOnMobile ? "flex" : "hidden lg:flex"} min-h-0 flex-col overflow-hidden bg-white p-4`}>
         <p className="text-xs font-bold uppercase tracking-[0.22em] text-gold">Messages</p>
         <h1 className="mt-1 font-serif text-3xl font-bold text-burgundy">Conversations</h1>
         <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
@@ -243,7 +262,7 @@ export function MessagingView({
           <Link href="/messages?favourite=1" className={`rounded-full px-3 py-1.5 ${initialFilters.favourite ? "bg-burgundy text-cream" : "bg-cream-200 text-burgundy"}`}>Favourites</Link>
           <Link href="/messages?archived=1" className={`rounded-full px-3 py-1.5 ${initialFilters.archived ? "bg-burgundy text-cream" : "bg-cream-200 text-burgundy"}`}>Archived</Link>
         </div>
-        <div className="mt-4 space-y-2">
+        <div className="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
           {conversations.length ? conversations.map((conversation) => (
             <button
               key={conversation.id}
@@ -271,17 +290,21 @@ export function MessagingView({
         </div>
       </Card>
 
-      <Card className="flex min-h-[620px] flex-col overflow-hidden bg-white">
+      <Card className={`${active ? "flex" : "hidden lg:flex"} min-h-0 flex-col overflow-hidden bg-white`}>
         {error && <div className="p-4"><Toast tone="warning">{error}</Toast></div>}
         {notice && <div className="p-4"><Toast tone="success">{notice}</Toast></div>}
         {active ? (
           <>
             <div className="flex items-center justify-between gap-4 border-b border-cream-300 p-4">
-              <div>
+              <div className="min-w-0">
+                <button type="button" className="mb-3 inline-flex items-center gap-2 text-sm font-bold text-burgundy lg:hidden" onClick={clearActiveConversation}>
+                  <ArrowLeft size={16} />
+                  Back to list
+                </button>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-mauve">Chat with</p>
-                <h2 className="font-serif text-3xl font-bold text-burgundy">{active.otherName}</h2>
+                <h2 className="truncate font-serif text-3xl font-bold text-burgundy">{active.otherName}</h2>
               </div>
-              <div className="flex flex-wrap justify-end gap-2">
+              <div className="flex max-w-[250px] flex-wrap justify-end gap-2">
                 <Button type="button" variant={active.favourite ? "gold" : "ghostLight"} onClick={() => saveTag({ favourite: !active.favourite })}>
                   <Star size={16} />
                   Favourite
@@ -328,7 +351,7 @@ export function MessagingView({
               <input className="min-h-9 flex-1 rounded-full border border-cream-300 bg-white px-3 text-sm outline-none focus:border-gold" value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Label, e.g. Reply Later" />
               <Button type="button" variant="gold" className="min-h-9 px-4 py-1.5 text-xs" onClick={() => saveTag({ label })}>Save label</Button>
             </div>
-            <div className="flex-1 space-y-3 overflow-y-auto bg-cream-100 p-4">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-cream-100 p-4">
               {messages.length ? messages.map((message) => {
                 const mine = message.senderId === currentUserId;
                 return (
@@ -373,21 +396,30 @@ export function MessagingView({
                   </button>
                 </div>
               ) : null}
-              <div className="flex gap-3">
-                <label className={`grid min-h-12 w-12 shrink-0 place-items-center rounded-full border border-cream-300 bg-cream text-burgundy ${active.blocked || sending ? "opacity-50" : "cursor-pointer"}`} aria-label="Attach photo">
+              <div className="flex gap-2 sm:gap-3">
+                <label className={`grid min-h-12 w-11 shrink-0 place-items-center rounded-full border border-cream-300 bg-cream text-burgundy sm:w-12 ${active.blocked || sending ? "opacity-50" : "cursor-pointer"}`} aria-label="Attach photo">
                   <ImagePlus size={18} />
                   <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" disabled={active.blocked || sending} onChange={selectImage} />
                 </label>
+                <SendGiftButton
+                  receiverId={active.otherUserId}
+                  receiverName={active.otherName}
+                  gifts={giftOptions}
+                  initialBalance={giftBalance}
+                  compact
+                  iconOnly
+                  onSent={() => void loadConversation(active.id, { quiet: true, resetComposer: false })}
+                />
                 <textarea
-                  className="min-h-12 flex-1 resize-none rounded-3xl border border-cream-300 bg-cream px-4 py-3 text-sm outline-none focus:border-gold"
+                  className="min-h-12 min-w-0 flex-1 resize-none rounded-3xl border border-cream-300 bg-cream px-4 py-3 text-sm outline-none focus:border-gold"
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   placeholder={active.blocked ? "Conversation blocked" : imagePreviewUrl ? "Optional caption..." : "Write a thoughtful message..."}
                   disabled={active.blocked || sending}
                 />
-                <Button type="submit" variant="primary" disabled={active.blocked || sending || (!draft.trim() && !imageFile)}>
+                <Button type="submit" variant="primary" className="w-16 shrink-0 px-0 sm:w-auto sm:px-5" disabled={active.blocked || sending || (!draft.trim() && !imageFile)}>
                   <Send size={18} />
-                  Send
+                  <span className="hidden sm:inline">Send</span>
                 </Button>
               </div>
               <p className="mt-2 text-xs font-semibold text-mauve-dark">Photo messages upload securely to TMH media storage, unlock after 30 days, and are limited to 10 per 24 hours.</p>
@@ -404,26 +436,25 @@ export function MessagingView({
         )}
       </Card>
 
-      <Card className="h-fit bg-chrome p-5 text-cream">
-        {active ? (
-          <>
-            <div className="relative aspect-[4/5] overflow-hidden rounded-3xl">
-              <Image src={active.otherPhoto} alt={active.otherName} fill sizes="300px" className="object-cover" />
-            </div>
-            <h2 className="mt-4 font-serif text-3xl font-bold text-gold-light">{active.otherName}</h2>
-            <p className="mt-1 text-sm text-cream-200">{active.otherLocation}</p>
-            <p className="mt-4 text-sm leading-6 text-cream-200">{active.otherHeadline}</p>
-            <Link href={`/profiles/${active.otherUserId}`} className="mt-5 block rounded-full bg-gold px-5 py-3 text-center text-sm font-bold text-burgundy-dark">
-              View profile
-            </Link>
-            <div className="mt-3">
-              <SendGiftButton receiverId={active.otherUserId} receiverName={active.otherName} gifts={giftOptions} initialBalance={giftBalance} compact />
-            </div>
-          </>
-        ) : (
-          <p className="text-sm leading-6 text-cream-200">Profile preview appears here after you select a conversation.</p>
-        )}
-      </Card>
+      <aside className="hidden min-h-0 space-y-3 overflow-y-auto lg:block">
+        {adBanners.slice(0, 2).map((banner) => <MessagingHouseBanner key={`right-a-${banner.title}`} {...banner} />)}
+      </aside>
+      <aside className="hidden min-h-0 space-y-3 overflow-y-auto lg:block">
+        {adBanners.slice(1, 3).map((banner) => <MessagingHouseBanner key={`right-b-${banner.title}`} {...banner} />)}
+      </aside>
     </div>
+  );
+}
+
+function MessagingHouseBanner({ title, body, href }: { title: string; body: string; href: string }) {
+  return (
+    <Link href={href} className="block rounded-2xl border border-gold/25 bg-chrome p-4 text-cream shadow-soft transition hover:-translate-y-0.5 hover:border-gold/50">
+      <span className="grid h-9 w-9 place-items-center rounded-full bg-gold/20 text-gold-light">
+        <Crown size={16} />
+      </span>
+      <span className="mt-4 block font-serif text-xl font-bold leading-tight text-gold-light">{title}</span>
+      <span className="mt-2 block text-xs font-semibold leading-5 text-cream-200">{body}</span>
+      <span className="mt-4 inline-flex rounded-full bg-gold px-3 py-1.5 text-xs font-bold text-burgundy-dark">View VIP</span>
+    </Link>
   );
 }

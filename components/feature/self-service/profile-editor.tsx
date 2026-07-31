@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChangeEvent, FormEvent, useState } from "react";
 import { signOut } from "next-auth/react";
 import { Camera, Eye, Loader2, Star, Trash2, UploadCloud } from "lucide-react";
@@ -95,7 +96,8 @@ function SelectField({
   );
 }
 
-export function ProfileEditor({ profile }: { profile: MemberProfileForm }) {
+export function ProfileEditor({ profile, returnToView = false }: { profile: MemberProfileForm; returnToView?: boolean }) {
+  const router = useRouter();
   const [form, setForm] = useState(profile);
   const [password, setPassword] = useState("");
   const [confirming, setConfirming] = useState(false);
@@ -130,6 +132,7 @@ export function ProfileEditor({ profile }: { profile: MemberProfileForm }) {
       setForm((current) => ({ ...current, completion: data.completion ?? current.completion }));
     }
     setMessage("Profile updated. Your next match sees the cleaner version.");
+    if (returnToView) router.push("/my-profile");
   }
 
   async function uploadProfilePhoto(event: ChangeEvent<HTMLInputElement>) {
@@ -244,9 +247,9 @@ export function ProfileEditor({ profile }: { profile: MemberProfileForm }) {
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-gold">My profile</p>
             <h1 className="mt-2 font-serif text-4xl font-bold text-burgundy-dark">Edit your dating profile</h1>
           </div>
-          <Link href="/my-profile?preview=1" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-burgundy/20 bg-cream px-5 py-2.5 text-sm font-semibold text-burgundy hover:bg-cream-200">
+          <Link href="/my-profile" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-burgundy/20 bg-cream px-5 py-2.5 text-sm font-semibold text-burgundy hover:bg-cream-200">
             <Eye className="h-4 w-4" />
-            Preview profile
+            View profile
           </Link>
         </div>
         <form onSubmit={saveProfile} className="mt-6 grid gap-7">

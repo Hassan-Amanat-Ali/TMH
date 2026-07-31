@@ -59,13 +59,13 @@ export function MarketingHomePage({ profiles, reels, isSignedIn }: MarketingHome
 
   return (
     <div className="bg-[#FBF5EC] pb-16 text-ink lg:pb-0">
-      <section className="relative min-h-[430px] overflow-hidden bg-burgundy-dark">
-        <div className="absolute right-0 top-0 hidden h-full w-[62%] md:block">
-          <Image src={heroImage} alt="Couple at golden hour with lanterns" fill priority sizes="62vw" className="object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#4A0E18] via-[#4A0E18]/55 to-transparent" />
+      <section className="relative min-h-[500px] overflow-hidden bg-burgundy-dark">
+        <div className="absolute right-0 top-0 hidden h-full w-[72%] md:block">
+          <Image src={heroImage} alt="Couple at golden hour with lanterns" fill priority sizes="72vw" className="object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#4A0E18]/88 via-[#4A0E18]/35 to-transparent" />
         </div>
-        <div className="absolute inset-0 bg-gradient-to-r from-[#4A0E18] via-burgundy-dark to-burgundy-dark/20" />
-        <div className="relative mx-auto flex min-h-[430px] max-w-7xl flex-col justify-center px-4 py-12 sm:px-6 lg:px-14">
+        <div className="absolute inset-0 bg-gradient-to-r from-[#4A0E18]/92 via-burgundy-dark/58 to-burgundy-dark/5" />
+        <div className="relative mx-auto flex min-h-[500px] max-w-7xl flex-col justify-center px-4 py-14 sm:px-6 lg:px-14">
           <div className="max-w-[520px]">
             <h1 className="m-0 font-serif text-5xl font-semibold leading-[1.08] text-[#FFF3E8] sm:text-6xl">
               Find Love That
@@ -74,11 +74,11 @@ export function MarketingHomePage({ profiles, reels, isSignedIn }: MarketingHome
             </h1>
             <p className="mt-5 max-w-md text-base leading-7 text-[#EFD0C2]">Serious Relationships. Beautiful Connections. A Future Together.</p>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <Link href="/signup" className="inline-flex min-h-12 items-center justify-center rounded-xl bg-gradient-to-br from-gold-light to-gold px-7 text-[15px] font-bold text-[#3A2A12] shadow-[0_14px_30px_rgba(0,0,0,.35)]">
-                Join Free Now
+              <Link href={isSignedIn ? "/search" : "/signup"} className="inline-flex min-h-12 items-center justify-center rounded-xl bg-gradient-to-br from-gold-light to-gold px-7 text-[15px] font-bold text-[#3A2A12] shadow-[0_14px_30px_rgba(0,0,0,.35)]">
+                {isSignedIn ? "Browse matches" : "Join Free Now"}
               </Link>
-              <Link href="/how-to-use" className="inline-flex min-h-12 items-center justify-center rounded-xl border border-gold-light/60 px-7 text-[15px] font-semibold text-gold-light">
-                Learn More
+              <Link href={isSignedIn ? "/messages" : "/how-to-use"} className="inline-flex min-h-12 items-center justify-center rounded-xl border border-gold-light/60 bg-chrome/35 px-7 text-[15px] font-semibold text-gold-light backdrop-blur-sm">
+                {isSignedIn ? "Open messages" : "Learn More"}
               </Link>
             </div>
             <p className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#D9A98F]">

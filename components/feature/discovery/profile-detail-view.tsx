@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { Flag, MapPin, MessageCircle, ShieldCheck, Sparkles } from "lucide-react";
 import type { DiscoveryProfile } from "@/lib/server/services/discovery";
 import { Badge, Card, Chip } from "@/components/ui";
@@ -8,7 +9,19 @@ import { ProfileActionButtons } from "./profile-action-buttons";
 import { ProfileVisitTracker } from "./profile-visit-tracker";
 import { SendGiftButton, type GiftOption } from "@/components/feature/economy/send-gift-button";
 
-export function ProfileDetailView({ profile, gifts = [], giftBalance = 0, preview = false }: { profile: DiscoveryProfile; gifts?: GiftOption[]; giftBalance?: number; preview?: boolean }) {
+export function ProfileDetailView({
+  profile,
+  gifts = [],
+  giftBalance = 0,
+  preview = false,
+  previewAction,
+}: {
+  profile: DiscoveryProfile;
+  gifts?: GiftOption[];
+  giftBalance?: number;
+  preview?: boolean;
+  previewAction?: ReactNode;
+}) {
   return (
     <div className="bg-cream-100">
       {!preview && <ProfileVisitTracker profileId={profile.userId} />}
@@ -45,9 +58,12 @@ export function ProfileDetailView({ profile, gifts = [], giftBalance = 0, previe
                 <MatchBadge percent={profile.matchPercent} size="lg" />
               </div>
               {preview ? (
-                <p className="mt-5 rounded-3xl bg-cream-100 p-4 text-sm font-semibold leading-6 text-mauve-dark">
-                  Preview mode shows how members see your profile. Interaction buttons are hidden because this is your own profile.
-                </p>
+                <div className="mt-5 space-y-3">
+                  <p className="rounded-3xl bg-cream-100 p-4 text-sm font-semibold leading-6 text-mauve-dark">
+                    Preview mode shows how members see your profile. Interaction buttons are hidden because this is your own profile.
+                  </p>
+                  {previewAction}
+                </div>
               ) : (
                 <div className="mt-5">
                   <ProfileActionButtons profileId={profile.userId} liked={profile.likedByViewer} favourited={profile.favouritedByViewer} />

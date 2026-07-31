@@ -81,7 +81,33 @@ async function assertTwoUserMessaging(browser) {
 
   await pageB.locator("p", { hasText: body }).first().waitFor({ timeout: 7000 });
   record("pass", "Second member sees incoming message without manual reload");
-  await screenshot(pageB, "messaging-polling");
+  await screenshot(pageB, "messaging-desktop-five-column");
+
+  const giftButton = pageB.getByRole("button", { name: /send a gift/i }).first();
+  if (await giftButton.isVisible().catch(() => false)) {
+    await giftButton.click();
+    await pageB.getByRole("heading", { name: /send a gift to/i }).waitFor({ timeout: 5000 });
+    record("pass", "Gift control opens from the message composer");
+    await pageB.keyboard.press("Escape").catch(() => undefined);
+  } else {
+    record("fail", "Gift control is not visible in the message composer", { screenshot: await screenshot(pageB, "messaging-gift-missing") });
+  }
+
+  const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true });
+  const mobilePage = await mobileContext.newPage();
+  await login(mobilePage, memberB);
+  await mobilePage.goto(`${baseUrl}/messages`, { waitUntil: "networkidle" });
+  await mobilePage.getByRole("heading", { name: /conversations/i }).waitFor({ timeout: 8000 });
+  await screenshot(mobilePage, "messaging-mobile-list");
+  await mobilePage.getByRole("button", { name: new RegExp(memberA.email.split("@")[0], "i") }).first().click().catch(async () => {
+    await mobilePage.locator("button").filter({ hasText: /member|power|admin|mali/i }).first().click();
+  });
+  await mobilePage.getByText(/back to list/i).waitFor({ timeout: 8000 });
+  await screenshot(mobilePage, "messaging-mobile-chat");
+  await mobilePage.getByRole("button", { name: /back to list/i }).click();
+  await mobilePage.getByRole("heading", { name: /conversations/i }).waitFor({ timeout: 8000 });
+  record("pass", "Mobile messages use list, chat, and Back master-detail flow");
+  await mobileContext.close();
 
   await Promise.all([contextA.close(), contextB.close()]);
 }
@@ -91,6 +117,12 @@ async function assertProfileEditor(browser) {
   const page = await context.newPage();
   await login(page, memberA);
   await page.goto(`${baseUrl}/my-profile`, { waitUntil: "networkidle" });
+  await page.getByText(/Preview mode shows how members see your profile/i).waitFor({ timeout: 8000 });
+  await page.getByRole("link", { name: /edit profile/i }).waitFor({ timeout: 8000 });
+  record("pass", "My Profile opens in read-only profile view first");
+  await screenshot(page, "profile-view-first");
+  await page.getByRole("link", { name: /edit profile/i }).click();
+  await page.waitForURL((url) => url.pathname === "/my-profile" && url.searchParams.get("edit") === "1", { timeout: 8000 });
 
   const labels = ["Account name", "Display name", "Gender", "Seeking", "Date of birth", "Age", "Height", "Smoking", "Drinking", "Languages", "Interests", "Goals"];
   const missing = [];
@@ -104,20 +136,36 @@ async function assertProfileEditor(browser) {
   }
 
   const galleryText = await page.getByText(/profile photos/i).first().isVisible().catch(() => false);
-  const previewLink = await page.getByRole("link", { name: /preview profile/i }).isVisible().catch(() => false);
-  if (galleryText && previewLink) {
-    record("pass", "Profile editor includes photo gallery area and preview link");
+  const viewLink = await page.getByRole("link", { name: /view profile/i }).isVisible().catch(() => false);
+  if (galleryText && viewLink) {
+    record("pass", "Profile editor includes photo gallery area and view-profile affordance");
   } else {
-    record("fail", "Profile editor missing gallery or preview affordance", { galleryText, previewLink, screenshot: await screenshot(page, "profile-gallery-preview-missing") });
+    record("fail", "Profile editor missing gallery or view-profile affordance", { galleryText, viewLink, screenshot: await screenshot(page, "profile-gallery-view-missing") });
   }
   await screenshot(page, "profile-editor");
 
-  await page.getByRole("link", { name: /preview profile/i }).click();
-  await page.waitForURL((url) => url.pathname === "/my-profile" && url.searchParams.get("preview") === "1", { timeout: 8000 });
+  await page.getByRole("button", { name: /save profile/i }).click();
+  await page.waitForURL((url) => url.pathname === "/my-profile" && !url.searchParams.get("edit"), { timeout: 8000 });
   await page.getByText(/Preview mode shows how members see your profile/i).waitFor({ timeout: 8000 });
-  record("pass", "Profile preview opens in read-only self-preview mode");
-  await screenshot(page, "profile-preview");
+  record("pass", "Saving profile returns to read-only profile view");
+  await screenshot(page, "profile-view-after-save");
 
+  await context.close();
+}
+
+async function assertHomeHero(browser) {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 950 } });
+  const page = await context.newPage();
+  await login(page, memberA);
+  await page.goto(`${baseUrl}/`, { waitUntil: "networkidle" });
+  const browseCta = await page.getByRole("link", { name: /browse matches/i }).first().isVisible().catch(() => false);
+  const joinCta = await page.getByRole("link", { name: /join free now/i }).first().isVisible().catch(() => false);
+  if (browseCta && !joinCta) {
+    record("pass", "Signed-in home hero uses member CTA instead of Join Free Now");
+  } else {
+    record("fail", "Signed-in home hero CTA is incorrect", { browseCta, joinCta, screenshot: await screenshot(page, "home-cta-wrong") });
+  }
+  await screenshot(page, "home-signed-in-hero");
   await context.close();
 }
 
@@ -130,6 +178,7 @@ async function main() {
   try {
     await assertTwoUserMessaging(browser);
     await assertProfileEditor(browser);
+    await assertHomeHero(browser);
   } finally {
     await browser.close();
   }

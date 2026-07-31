@@ -12,7 +12,7 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 
 ---
 
-**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 111** · **Codex → Prompt 110**
+**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 117** · **Codex → Prompt 116**
 
 ---
 
@@ -1328,3 +1328,43 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 ## Prompt 112 Codex
 - **Push completed:** pushed `ec634d1 fix: improve member messaging and profile ux` to `origin/master` (`cd14b3d..ec634d1`).
 - **Final handoff:** owner can redeploy VPS and smoke test live messaging polling, `/my-profile` editor/gallery/preview, profile detail contrast, and Search `Filters`/`Save This Search` visibility.
+
+## Prompt 113 Codex
+- Owner reported `done` after receiving VPS redeploy commands for the member messaging/profile UX batch.
+- Interpreted as owner completed or is completing production redeploy from `/var/www/websites/tmh` after `3828940` reached `origin/master`.
+- Next verification requested: confirm VPS latest commit, PM2 online, `/login` healthy, then live smoke messaging polling, profile editor/gallery/preview, profile detail contrast, and Search `Filters` / `Save This Search` button visibility.
+
+## Prompt 114 Codex
+- Owner pasted VPS verification for the member UX batch after redeploy.
+- Confirmed `git log --oneline -3` shows `3828940` at HEAD, followed by `ec634d1` and `cd14b3d`.
+- Confirmed PM2 shows `tmh` online with pid `3830264`, uptime about 8m, memory about 60.8mb; PM2 in-memory version warning remains non-blocking.
+- Confirmed `curl -I https://thaimyheart.com/login` returns `HTTP/1.1 200 OK`.
+- Remaining checks are browser/live behavior: Search controls visibility, profile detail contrast, My Profile editor/gallery/preview, and two-user messaging polling.
+
+## Prompt 115 Claude (big UX batch spec: messaging/notifications/home/profile)
+- Prior batch LIVE (3828940): search buttons fixed, msg polling, profile editor.
+- **New owner batch captured:** N live notifications (poll bell); MSG-1 contained scroll (page must not grow — mobile esp.); MSG-2 desktop 5-col (ads|conversations-scroll|chat|ads, remove profile panel); MSG-3 mobile master/detail (Messages→list, tap→chat, Back); MSG-4 gift in composer; HOME-1 logged-in CTA (no "Join Free Now"); HOME-2 hero image bigger + less red; PROF-1 my-profile = view→Edit→Save→view. Ad slots = house/VIP banners for now.
+- **Edited (project code):** none — spec only (verified prior 2-button fix live).
+- **▶ Codex:** implement in order MSG-1→MSG-3→MSG-2→MSG-4→PROF-1→HOME→N; real-behavior + mobile screenshots. Append `## Prompt 116 Codex`.
+
+## Prompt 116 Codex
+- **User cue:** `claude updated`.
+- **Read first:** latest `ai_working.md` and relevant `ai_collaboration.md`; Claude Prompt 115 requested messaging redesign/contained scroll/mobile master-detail/gift composer, live notification polling, logged-in home hero CTA/visual adjustment, and `/my-profile` view-first behavior.
+- **Implemented MSG-1/MSG-2/MSG-3:** `components/feature/messaging/messaging-view.tsx` now uses a viewport-contained grid with internal scrolling, desktop `ads | conversations | chat | ads | ads`, no right profile panel, and mobile list-only -> chat-only with Back to list. Conversation list and message list both use `min-h-0` + `overflow-y-auto` so the page does not grow with long chats.
+- **Implemented MSG-4:** gift control is now inside the message composer. `SendGiftButton` gained `iconOnly` and `onSent` props so the composer can open the picker compactly and refresh the chat after a gift send.
+- **Implemented PROF-1:** `/my-profile` now opens read-only public-style profile view first with an Edit profile button. `/my-profile?edit=1` opens the editor, and Save returns to `/my-profile` view.
+- **Implemented HOME:** signed-in home hero now shows `Browse matches` + `Open messages` instead of `Join Free Now`; hero image is wider/larger with a lighter burgundy overlay.
+- **Implemented N:** `SiteHeader` now polls `/api/messages/unread` about every 4 seconds while signed in and tab-visible so the bell badge/dropdown updates without reload.
+- **QA updated:** `scripts/member-flow-audit.mjs` now checks desktop messaging, gift control in composer, mobile messages list/chat/back, profile view-first/edit/save-view, and signed-in home CTA. Screenshots regenerated in `qa-audit/`.
+- **Verification:** `npm.cmd run lint` passed; `npx.cmd tsc --noEmit` passed earlier in the batch and production build re-ran TypeScript successfully; `npm.cmd run build` passed with 50 routes; `npm.cmd run qa:member-flows` passed 8/8; `git diff --check -- app components scripts ai_working.md ai_collaboration.md` passed with CRLF warnings only.
+- **Screenshots for Claude review:** `qa-audit/member-flow__messaging-desktop-five-column.png`, `qa-audit/member-flow__messaging-mobile-list.png`, `qa-audit/member-flow__messaging-mobile-chat.png`, `qa-audit/member-flow__profile-view-first.png`, `qa-audit/member-flow__profile-editor.png`, `qa-audit/member-flow__profile-view-after-save.png`, `qa-audit/member-flow__home-signed-in-hero.png`.
+- **Files edited:** `app/(member)/my-profile/page.tsx`, `components/feature/messaging/messaging-view.tsx`, `components/feature/economy/send-gift-button.tsx`, `components/feature/discovery/profile-detail-view.tsx`, `components/feature/self-service/profile-editor.tsx`, `components/feature/content/home-page.tsx`, `components/layout/site-header.tsx`, `scripts/member-flow-audit.mjs`, plus collaboration logs.
+- **For Claude review next:** inspect the screenshots and code for chat column sizing, mobile composer ergonomics, gift modal flow, profile view-first tone/contrast, home hero color/CTA, and notification polling interval. Batch is uncommitted pending review/approval.
+
+## Prompt 117 Claude (Prompt 116 batch — APPROVED + regression clean)
+- **Target ✅** (code+screenshots+QA 8/8): messaging contained-scroll/5-col/mobile-master-detail/gift-composer; home member-CTA + lighter-wider hero; profile view-first; header notif polling. Desktop 5-col + hero screenshots verified.
+- **REGRESSION SWEEP CLEAN:** SendGiftButton/ProfileDetailView/home-page changes optional/branch-scoped (other callers unaffected); logged-out home unchanged; all messaging handlers preserved; gift data flows; header polling has cleanup.
+- **Minor LOW:** hero "Open messages" text faint (contrast); msg ad banners repeat.
+- **Verdict: APPROVED.**
+- **Edited (project code):** none — review only.
+- **▶ Codex:** commit/push → owner redeploy → live re-test (mobile msg, gift, profile view). Append `## Prompt 118 Codex`.

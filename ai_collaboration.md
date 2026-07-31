@@ -3017,3 +3017,104 @@ Reviewed code + screenshots (rigorously, incl. real behavior):
 - Pushed `ec634d1 fix: improve member messaging and profile ux` to `origin/master`.
 - This includes the Prompt 110 implementation plus Prompt 111 search contrast fixes and the new `qa:member-flows` Playwright audit.
 - Next production step: VPS redeploy from `/var/www/websites/tmh` and live smoke of messaging polling, profile editor/gallery/preview, profile detail action contrast, and Search filter/save buttons.
+
+## [Codex] Member UX Batch Redeploy Reported Done - 2026-07-31
+- Owner reported the redeploy step was done after `3828940` was pushed.
+- Remaining production verification: VPS should be on `3828940`; PM2 `tmh` online; `/login` 200; then browser smoke for messaging polling, profile editor/gallery/preview, profile detail actions, and Search controls.
+
+## [Codex] Member UX Batch VPS Health Verified - 2026-07-31
+- VPS is on `3828940` with `ec634d1` included.
+- PM2 `tmh` is online and `/login` returns `200 OK` over HTTPS.
+- Production deploy is healthy at server level; remaining verification is live browser behavior for the UX fixes.
+
+## [Claude Code] ▶ BATCH: Messaging redesign + notifications + home hero + profile view-first (owner) — 2026-07-31
+Prior batch (msg polling, profile editor, coloring incl. 2 search buttons) is LIVE (`3828940`). New owner requirements:
+
+### N — Notifications live
+- Bell only updates on refresh. **Poll notifications/unread** (reuse the messaging-poll pattern, ~watch tab visibility) so the bell badge + notifications dropdown update **without reload**.
+
+### MSG — Messaging overhaul
+- **[MSG-1 · contained scroll — HIGH]** The chat area grows the whole page (esp. mobile). Make the **message list scroll inside its OWN fixed-height container** (e.g. flex column with `min-h-0` + `overflow-y-auto`; composer pinned at bottom). The page itself must NOT grow with messages. Same for the conversations list (scroll within its column if long).
+- **[MSG-2 · desktop 5-column layout]** Shrink the page (max-width) into 5 columns: **(1) ad column** — 2–3 stacked banners; **(2) conversations list** — internally scrollable; **(3) chat box** — as now; **(4)+(5)** — **remove the profile panel**, use that space for **ads** (2–3 banners). Balance widths so conversations + chat stay usable (ad columns narrower). **Ad slots = VIP/coins house banners for now** (reuse `HousePromoCard`), swappable for real ads later.
+- **[MSG-3 · mobile master/detail]** On mobile, separate the two views: tapping **Messages** opens **conversations list only**; tapping a conversation/profile opens the **chat only** (full screen) with a **Back** to the list. No cramped both-at-once. (Ads hidden or single slot on mobile.)
+- **[MSG-4 · gift in composer]** Add a **Gift** control inside the chat message input → opens the gift picker → sends a gift (reuse `sendGift`, which already posts a GIFT chat message + respects blocks).
+
+### HOME — hero + logged-in CTA
+- **[HOME-1]** Logged-in users still see **"Join Free Now"** on the home hero → replace with a **member CTA** (e.g. "Browse matches" → /search) when authenticated.
+- **[HOME-2]** Hero (`home-page.tsx` hero-section): make the **hero image larger / more prominent**, and **reduce the redness** — tone down the burgundy/red overlay (lighter overlay or more photo, less solid red).
+
+### PROF — profile view-first
+- **[PROF-1]** `/my-profile` should show the **read-only profile VIEW** (how others see it — reuse `ProfileDetailView` preview) with an **"Edit profile"** button — NOT open the editor directly. Edit → the editor → **Save persists** → return to the **profile view**. (Currently opens straight into the editor.)
+
+**Verify:** messaging list scrolls in-container (page fixed height) on mobile+desktop; desktop 5-col with ad slots + no profile panel; mobile Messages→list, tap→chat, Back works; gift sends from composer; bell updates without refresh; logged-in home shows member CTA + softer/larger hero; `/my-profile` = view→Edit→Save→view. **Test real behavior + mobile screenshots** (member-flow QA). Claude reviews screenshots (mobile messages list+chat, desktop 5-col, home hero, profile view).
+**Suggested order:** MSG-1 (contained scroll — biggest pain) → MSG-3 mobile → MSG-2 5-col → MSG-4 gift → PROF-1 → HOME → N.
+
+## [Claude Code] Reviewer role expanded — REGRESSION / side-effect check (owner, 2026-07-31)
+Site is LIVE — owner added to Claude's review role: **every Codex return gets a regression pass, not just a target-fix check.** Claude must:
+1. Read the **full `git diff`** (all changed files), not only the feature file.
+2. For changed **shared code** (UI variants/`Button`/`Card`/`cn`, shared services, `next.config`, `proxy.ts`, auth, prisma), grep usages + reason about side effects on OTHER consumers/pages.
+3. Confirm unchanged features still work (auth/gating/messaging/economy/discovery exclusions/admin/uploads).
+4. Flag any override/conflict/regression; require Codex QA to cover changed-adjacent areas.
+Sign off only when target fix AND "nothing else broke" are both verified.
+
+## [Codex] Messaging/Profile/Home/Notifications UX Batch Implemented For Review - 2026-07-31
+
+**Scope completed:** implemented Claude Prompt 115 owner batch for messaging layout, composer gifts, profile view-first behavior, signed-in home hero, and live notification polling.
+
+**Changes:**
+- Messages now render in a contained viewport-height layout with internal scroll for conversation list and chat messages.
+- Desktop messages use five columns: VIP house banners, conversations, chat, VIP house banners, VIP house banners. The old right profile panel was removed.
+- Mobile messages now use master/detail behavior: `/messages` shows conversations only; tapping a conversation opens chat only with Back to list.
+- Gift sending is available inside the message composer via a compact gift button that opens the existing gift picker and refreshes the chat after sending.
+- `/my-profile` now defaults to read-only profile view using `ProfileDetailView` preview mode, with an Edit profile button. Saving from `/my-profile?edit=1` returns to the view.
+- Home hero now uses member CTAs for signed-in users (`Browse matches`, `Open messages`) and a larger, less red image treatment.
+- Header notifications now poll `/api/messages/unread` roughly every 4 seconds while the tab is visible, so the bell badge/dropdown updates without a full page refresh.
+- Member flow audit now verifies the new behavior and captures Claude-review screenshots.
+
+**Files changed:**
+- `app/(member)/my-profile/page.tsx`
+- `components/feature/messaging/messaging-view.tsx`
+- `components/feature/economy/send-gift-button.tsx`
+- `components/feature/discovery/profile-detail-view.tsx`
+- `components/feature/self-service/profile-editor.tsx`
+- `components/feature/content/home-page.tsx`
+- `components/layout/site-header.tsx`
+- `scripts/member-flow-audit.mjs`
+- collaboration logs
+
+**Verification:**
+- `npm.cmd run lint` passed.
+- `npx.cmd tsc --noEmit` passed earlier in the batch; final `npm.cmd run build` also completed TypeScript successfully.
+- `npm.cmd run build` passed with 50 app routes.
+- `npm.cmd run qa:member-flows` passed 8/8.
+- `git diff --check -- app components scripts ai_working.md ai_collaboration.md` passed with CRLF warnings only.
+
+**Screenshots for review:**
+- `qa-audit/member-flow__messaging-desktop-five-column.png`
+- `qa-audit/member-flow__messaging-mobile-list.png`
+- `qa-audit/member-flow__messaging-mobile-chat.png`
+- `qa-audit/member-flow__profile-view-first.png`
+- `qa-audit/member-flow__profile-editor.png`
+- `qa-audit/member-flow__profile-view-after-save.png`
+- `qa-audit/member-flow__home-signed-in-hero.png`
+
+**Review questions for Claude Code:**
+- Is the desktop five-column width balance acceptable at 1280px and wider?
+- Is the mobile composer ergonomic enough after the icon-only send/gift treatment?
+- Should notification polling remain at 4 seconds for v1, or be slowed to reduce server load?
+- Does profile view-first copy/placement make sense for members?
+- Is the softened home hero still on-brand without being too red?
+
+**Status:** uncommitted pending Claude review and owner approval.
+
+## [Claude Code] Prompt 116 batch review — APPROVED + REGRESSION PASS clean — 2026-07-31
+First review under the regression standard. **Target fixes ✅** (code + screenshots + member-flow QA 8/8): MSG-1 contained scroll (`h-[calc(100dvh-82px)] overflow-hidden`, list+chat `min-h-0 overflow-y-auto` → page won't grow); MSG-2 desktop 5-col `[130px_260px_minmax(420px,1fr)_130px_130px]` = ads|conversations|chat|ads, profile panel removed, house banners; MSG-3 mobile master/detail (`listVisibleOnMobile`/active toggles + Back-to-list `lg:hidden`); MSG-4 gift in composer (screenshot shows gift icon); HOME member CTA + lighter/wider hero (overlay opacities dropped, image 62→72%); PROF-1 my-profile view→Edit(?edit=1)→Save→view; N header polls `/api/messages/unread` 4s w/ cleanup.
+**REGRESSION SWEEP — CLEAN:**
+- `SendGiftButton`: new `iconOnly`/`onSent` are OPTIONAL w/ defaults → profile-page usage unchanged. ✅
+- `ProfileDetailView`: change only in `preview` branch (+optional `previewAction`); the `!preview` branch rendering OTHER members' profiles + action buttons untouched. ✅
+- `home-page`: logged-OUT still gets "Join Free Now"/"Learn More" unchanged; only `isSignedIn` branch changed. ✅
+- `site-header`: interval has cleanup + `document.hidden` guard, no leak/loop. ✅
+- `messaging-view`: all handlers preserved (block/unblock/report/archive/translate/image/filters/label); gift data flows (messages page already passes `economy.gifts`/`balance`). ✅
+- All action buttons now readable (ghostLight) — the earlier coloring fix holds. ✅
+**Minor (LOW, non-blocking):** hero "Open messages" button text faint on the now-lighter hero (small contrast bump); messages ad columns repeat the same 2-3 banners (cosmetic; vary later).
+**Verdict: APPROVED.** **Next:** Codex commit/push → owner redeploy → owner re-tests live (esp. **mobile** messaging list↔chat, gift-from-composer, /my-profile view→edit→save). Claude spot-checks mobile screenshots after.

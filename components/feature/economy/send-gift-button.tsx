@@ -17,12 +17,16 @@ export function SendGiftButton({
   gifts,
   initialBalance,
   compact = false,
+  iconOnly = false,
+  onSent,
 }: {
   receiverId: string;
   receiverName: string;
   gifts: GiftOption[];
   initialBalance: number;
   compact?: boolean;
+  iconOnly?: boolean;
+  onSent?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [balance, setBalance] = useState(initialBalance);
@@ -44,6 +48,7 @@ export function SendGiftButton({
       setBalance(result.balanceAfter);
       setMessage("");
       setNotice({ tone: "success", text: `${gift.name} sent to ${receiverName}.` });
+      onSent?.();
     } catch (error) {
       setNotice({ tone: "warning", text: error instanceof Error ? error.message : "Could not send gift." });
     } finally {
@@ -53,9 +58,16 @@ export function SendGiftButton({
 
   return (
     <>
-      <Button type="button" variant={compact ? "gold" : "ghostLight"} onClick={() => setOpen(true)}>
+      <Button
+        type="button"
+        variant={compact ? "gold" : "ghostLight"}
+        className={iconOnly ? "min-h-12 w-12 shrink-0 px-0" : undefined}
+        aria-label={iconOnly ? `Send a gift to ${receiverName}` : undefined}
+        title={iconOnly ? "Send gift" : undefined}
+        onClick={() => setOpen(true)}
+      >
         <Gift size={18} />
-        Send gift
+        {!iconOnly && "Send gift"}
       </Button>
       <Modal open={open} title={`Send a gift to ${receiverName}`} onClose={() => setOpen(false)}>
         <div className="space-y-4">

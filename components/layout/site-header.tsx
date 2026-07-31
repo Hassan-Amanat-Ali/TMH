@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { Bell, Crown, LogOut, MoreVertical, ShieldCheck, Wallet } from "lucide-react";
 import { Avatar, Drawer } from "@/components/ui";
@@ -45,13 +45,22 @@ export function SiteHeader() {
     Profile: copy.nav.profile,
   };
 
-  useEffect(() => {
-    if (!isSignedIn) return;
+  const loadUnread = useCallback(() => {
     void fetch("/api/messages/unread")
       .then((response) => (response.ok ? response.json() : null))
       .then((data: { unread?: number } | null) => setUnread(data?.unread || 0))
       .catch(() => setUnread(0));
-  }, [isSignedIn]);
+  }, []);
+
+  useEffect(() => {
+    if (!isSignedIn) return;
+    void loadUnread();
+    const interval = window.setInterval(() => {
+      if (document.hidden) return;
+      void loadUnread();
+    }, 4000);
+    return () => window.clearInterval(interval);
+  }, [isSignedIn, loadUnread]);
 
   async function handleSignOut() {
     setDrawerOpen(false);
