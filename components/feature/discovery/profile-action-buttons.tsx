@@ -2,6 +2,7 @@
 
 import { Bookmark, Heart, MessageCircle, Sparkles } from "lucide-react";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
 
 export function ProfileActionButtons({
@@ -18,6 +19,7 @@ export function ProfileActionButtons({
   const [isLiked, setIsLiked] = useState(liked);
   const [isFavourite, setIsFavourite] = useState(favourited);
   const [pending, setPending] = useState<string | null>(null);
+  const router = useRouter();
 
   async function send(type: "LIKE" | "FAVOURITE" | "WINK") {
     setPending(type);
@@ -50,7 +52,7 @@ export function ProfileActionButtons({
         <Bookmark className={isFavourite ? "fill-current" : ""} size={18} />
         {!compact && "Favourite"}
       </Button>
-      <Button type="button" variant="ghostLight" className={compactClass} aria-label="Say hello">
+      <Button type="button" variant="ghostLight" className={compactClass} aria-label="Say hello" onClick={() => router.push(`/messages?with=${profileId}`)}>
         <MessageCircle size={18} />
         {!compact && "Say hello"}
       </Button>

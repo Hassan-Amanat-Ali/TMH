@@ -2,30 +2,25 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSession } from "next-auth/react";
-import { Heart, Home, MessageCircle, Search, ShieldCheck, User } from "lucide-react";
+import { Heart, Home, LayoutDashboard, MessageCircle, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const tabs = [
-  { label: "Home", href: "/dashboard", icon: Home },
+  { label: "Home", href: "/", icon: Home },
   { label: "Search", href: "/search", icon: Search },
   { label: "Likes", href: "/likes", icon: Heart },
   { label: "Messages", href: "/messages", icon: MessageCircle },
-  { label: "Profile", href: "/my-profile", icon: User },
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
 ];
 
 export function MobileTabBar() {
   const pathname = usePathname();
-  const { data: session } = useSession();
-  const visibleTabs = session?.user?.isAdmin
-    ? [...tabs.slice(0, 4), { label: "Admin", href: "/admin", icon: ShieldCheck }]
-    : tabs;
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-gold/25 bg-chrome px-2 pb-2 pt-1 text-cream shadow-soft lg:hidden">
       <div className="grid grid-cols-5 gap-1">
-        {visibleTabs.map((tab) => {
-          const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
+        {tabs.map((tab) => {
+          const active = tab.href === "/" ? pathname === "/" : pathname === tab.href || pathname.startsWith(`${tab.href}/`);
           const Icon = tab.icon;
           return (
             <Link key={tab.href} href={tab.href} className={cn("flex min-h-14 flex-col items-center justify-center rounded-2xl text-[11px] font-bold text-cream/60", active && "bg-burgundy text-gold-light")}>

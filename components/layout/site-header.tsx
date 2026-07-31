@@ -14,7 +14,6 @@ const nav = [
   ["Search", "/search"],
   ["Reels", "/reels"],
   ["Messages", "/messages"],
-  ["Profile", "/my-profile"],
 ];
 
 const moreLinks = [
@@ -42,7 +41,6 @@ export function SiteHeader() {
     Search: copy.nav.search,
     Reels: copy.nav.reels,
     Messages: copy.nav.messages,
-    Profile: copy.nav.profile,
   };
 
   const loadUnread = useCallback(() => {

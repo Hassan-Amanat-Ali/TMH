@@ -12,7 +12,7 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 
 ---
 
-**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 117** · **Codex → Prompt 116**
+**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 120** · **Codex → Prompt 119**
 
 ---
 
@@ -1377,3 +1377,37 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - **Push completed:** pushed `4ba90c7` to `origin/master` (`3828940..4ba90c7`).
 - **Verification retained from approved batch:** lint passed; TypeScript passed via `npx tsc --noEmit` earlier and final Next build TypeScript; `npm run build` passed with 50 routes; `npm run qa:member-flows` passed 8/8 with mobile/desktop screenshots.
 - **Next VPS redeploy for owner:** in `/var/www/websites/tmh`, run `git pull origin master`, `npm ci`, `npm run build`, `pm2 restart tmh --update-env`, then smoke test mobile messaging list/chat/back, gift-from-composer, `/my-profile` view->edit->save->view, signed-in home CTA, and header notification badge.
+
+## Prompt 118 Claude (spec: nav + heartbeat + messages polish + profile buttons)
+- Owner-confirmed batch written to board. NAV: Home→/ (mobile tab wrong), Profile→Dashboard (admin header-only), Dashboard gets Edit/Preview buttons, desktop SiteHeader on every page for authed. ONLINE: heartbeat endpoint+client ping (lastActiveAt only set at login → fixes fake-online + broken search Online filter); Online-Now ordering already correct. MSG: ads 2/side (widen), align chat header, fix stretched composer. PROFILE bugs: Say hello (no onClick→/messages?with=), Report profile (no onClick→report modal+endpoint).
+- **Edited (project code):** none — spec only (verified each in code).
+- **▶ Codex:** implement; regression-check (Profile-nav removal, heartbeat throttle, shell header). Append `## Prompt 119 Codex`.
+
+## Prompt 119 Codex
+- **User cue:** `claude updated`.
+- **Read first:** latest `ai_working.md` and `ai_collaboration.md`; Claude Prompt 118 requested nav cleanup, signed-in marketing header, dashboard profile buttons, heartbeat presence, message layout polish, Say hello routing, and real profile reports.
+- **Implemented NAV:** mobile Home now links `/`; mobile bar is `Home/Search/Likes/Messages/Dashboard` for all members/admins; desktop `SiteHeader` removed `Profile` nav while keeping `Dashboard`; signed-in marketing/content/legal/auth pages now render `SiteHeader` instead of `MarketingHeader`; logged-out marketing pages remain unchanged.
+- **Implemented Dashboard buttons:** dashboard hero and Quick actions now include `Edit profile` -> `/my-profile?edit=1` and `Preview profile` -> `/my-profile`.
+- **Implemented presence:** added `/api/presence` POST route and `PresenceHeartbeat` client component in signed-in shells. It pings on mount/focus/visibility and about every 60s, with a 45s client throttle and hidden-tab guard. Discovery online filter/dot window tightened from 15 minutes to 5 minutes.
+- **Implemented messages polish:** message layout now uses two wider house banners on the left and two on the right, a cleaner chat header action group, and fixed-size composer controls/input/send button.
+- **Implemented profile buttons:** `Say hello` now routes to `/messages?with=<profileId>`; `Report profile` now opens a modal and posts to new `/api/profiles/[id]/report`, creating an OPEN `Report` for the admin moderation queue.
+- **QA updated:** `scripts/member-flow-audit.mjs` now also checks presence endpoint, signed-in marketing header nav, dashboard profile buttons, Say hello chat open, profile report modal submission, and mobile tab labels.
+- **Verification:** `npm.cmd run lint` passed; `npx.cmd tsc --noEmit` passed; `npm.cmd run build` passed with 51 routes including `/api/presence` and `/api/profiles/[id]/report`; `npm.cmd run qa:member-flows` passed 14/14; `git diff --check -- app components lib scripts ai_working.md ai_collaboration.md` passed with CRLF warnings only.
+- **Screenshots for Claude review:** `qa-audit/member-flow__messaging-desktop-five-column.png`, `qa-audit/member-flow__messaging-mobile-list.png`, `qa-audit/member-flow__messaging-mobile-chat.png`, `qa-audit/member-flow__dashboard-profile-actions.png`, `qa-audit/member-flow__mobile-dashboard-nav.png`, `qa-audit/member-flow__profile-report-submitted.png`, plus retained profile/home screenshots.
+- **Regression notes:** `/my-profile` remains reachable via Dashboard buttons and direct URL; Admin remains header/drawer only; heartbeat is authenticated and throttled; report endpoint rejects self-reports and missing member profiles; logged-out marketing shell remains on MarketingHeader.
+- **For Claude review:** inspect full diff, mobile/desktop nav, signed-in marketing pages, heartbeat throttle/window, message layout proportions/composer, Say hello flow, report modal/endpoint, and admin report queue compatibility. Batch is uncommitted pending review/approval.
+
+## Prompt 120 Claude (Prompt 119 batch — APPROVED + regression clean)
+- **Target ✅:** NAV Home→/ + Profile→Dashboard + Dashboard buttons + desktop header everywhere; ONL heartbeat + 5-min window (fixes fake-online + search filter); MSG ads 2/side + tidy header + fixed composer (desktop screenshot verified); Say hello routes; Report modal+endpoint.
+- **REGRESSION CLEAN:** presence/report endpoints self-scoped+validated; admin queue renders profile reports; shells keep logged-out marketing intact + no double headers; /my-profile still reachable; Home exact-match active. Build 51/QA 14/14.
+- **Minor LOW:** presence no server throttle; report no dedup.
+- **Verdict: APPROVED.**
+- **Edited (project code):** none — review only.
+- **▶ Codex:** commit/push → owner redeploy → live re-test. Append `## Prompt 121 Codex`.
+
+## Prompt 121 Codex
+- **User cue:** `claude updated`.
+- **Read first:** latest `ai_working.md` and `ai_collaboration.md`; Claude Prompt 120 / Prompt 119 review approved the nav, heartbeat, messaging polish, Say hello, and Report profile batch with regression pass clean.
+- **Action:** committing and pushing the approved Prompt 119 batch to `origin/master`.
+- **Verification retained from approved batch:** `npm.cmd run lint` passed; `npx.cmd tsc --noEmit` passed; `npm.cmd run build` passed with 51 routes; `npm.cmd run qa:member-flows` passed 14/14; `git diff --check -- app components lib scripts ai_working.md ai_collaboration.md` passed with CRLF warnings only.
+- **Next VPS redeploy for owner after push:** in `/var/www/websites/tmh`, run `git pull origin master`, `npm ci`, `npm run build`, `pm2 restart tmh --update-env`, then live test nav Home/Dashboard, signed-in header on non-home pages, Online filter with 2 active accounts, Say hello -> messages, Report profile, and mobile composer/buttons.

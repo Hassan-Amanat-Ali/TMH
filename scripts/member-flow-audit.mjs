@@ -169,6 +169,76 @@ async function assertHomeHero(browser) {
   await context.close();
 }
 
+async function assertNavPresenceAndProfileActions(browser) {
+  const [desktopContext, secondaryContext] = await Promise.all([
+    browser.newContext({ viewport: { width: 1440, height: 950 } }),
+    browser.newContext({ viewport: { width: 1440, height: 950 } }),
+  ]);
+  const page = await desktopContext.newPage();
+  const userBPage = await secondaryContext.newPage();
+  await login(page, memberA);
+  await login(userBPage, memberB);
+  const userB = await currentUser(userBPage);
+
+  const presence = await page.request.post(`${baseUrl}/api/presence`);
+  if (presence.ok()) {
+    record("pass", "Presence heartbeat endpoint accepts signed-in pings");
+  } else {
+    record("fail", "Presence heartbeat endpoint failed", { status: presence.status(), body: await presence.text() });
+  }
+
+  await page.goto(`${baseUrl}/faq`, { waitUntil: "networkidle" });
+  const dashboardNav = await page.getByRole("link", { name: /^dashboard$/i }).first().isVisible().catch(() => false);
+  const profileNav = await page.getByRole("navigation").getByRole("link", { name: /^profile$/i }).first().isVisible().catch(() => false);
+  if (dashboardNav && !profileNav) {
+    record("pass", "Signed-in marketing pages use member header with Dashboard nav and no Profile nav");
+  } else {
+    record("fail", "Signed-in marketing header nav is incorrect", { dashboardNav, profileNav, screenshot: await screenshot(page, "marketing-header-nav-wrong") });
+  }
+
+  await page.goto(`${baseUrl}/dashboard`, { waitUntil: "networkidle" });
+  const editProfile = await page.getByRole("link", { name: /^edit profile$/i }).first().isVisible().catch(() => false);
+  const previewProfile = await page.getByRole("link", { name: /^preview profile$/i }).first().isVisible().catch(() => false);
+  if (editProfile && previewProfile) {
+    record("pass", "Dashboard exposes Edit profile and Preview profile buttons");
+  } else {
+    record("fail", "Dashboard profile buttons missing", { editProfile, previewProfile, screenshot: await screenshot(page, "dashboard-profile-buttons-missing") });
+  }
+  await screenshot(page, "dashboard-profile-actions");
+
+  await page.goto(`${baseUrl}/profiles/${userB.id}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /say hello/i }).click();
+  await page.waitForURL((url) => url.pathname === "/messages", { timeout: 8000 });
+  await page.getByPlaceholder(/write a thoughtful message/i).waitFor({ timeout: 8000 });
+  record("pass", "Say hello opens a chat via /messages?with profile flow");
+
+  await page.goto(`${baseUrl}/profiles/${userB.id}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /report profile/i }).click();
+  await page.getByRole("heading", { name: /report/i }).waitFor({ timeout: 5000 });
+  await page.locator("select").selectOption("SPAM");
+  await page.locator("textarea").fill(`QA profile report ${Date.now()}`);
+  await page.getByRole("button", { name: /submit report/i }).click();
+  await page.getByText(/report submitted/i).waitFor({ timeout: 8000 });
+  record("pass", "Report profile opens modal and submits to moderation");
+  await screenshot(page, "profile-report-submitted");
+
+  const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true });
+  const mobilePage = await mobileContext.newPage();
+  await login(mobilePage, memberA);
+  await mobilePage.goto(`${baseUrl}/dashboard`, { waitUntil: "networkidle" });
+  const mobileLabels = await mobilePage.locator("nav").last().innerText().catch(() => "");
+  if (mobileLabels.includes("Home") && mobileLabels.includes("Dashboard") && !mobileLabels.includes("Profile") && !mobileLabels.includes("Admin")) {
+    record("pass", "Mobile tab bar uses Home/Search/Likes/Messages/Dashboard without Profile/Admin");
+  } else {
+    record("fail", "Mobile tab bar labels are incorrect", { mobileLabels, screenshot: await screenshot(mobilePage, "mobile-nav-wrong") });
+  }
+  await screenshot(mobilePage, "mobile-dashboard-nav");
+
+  await mobileContext.close();
+  await userBPage.close();
+  await Promise.all([desktopContext.close(), secondaryContext.close()]);
+}
+
 async function main() {
   await mkdir(outputRoot, { recursive: true });
   const ping = await fetch(`${baseUrl}/login`).catch(() => null);
@@ -179,6 +249,7 @@ async function main() {
     await assertTwoUserMessaging(browser);
     await assertProfileEditor(browser);
     await assertHomeHero(browser);
+    await assertNavPresenceAndProfileActions(browser);
   } finally {
     await browser.close();
   }

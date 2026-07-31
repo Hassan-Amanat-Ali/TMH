@@ -246,12 +246,13 @@ export function MessagingView({
     { title: "VIP Match Boost", body: "Stand higher in search and see who already likes you.", href: "/vip" },
     { title: "Coin Wallet", body: "Keep gifts ready for the conversations that feel promising.", href: "/vip#wallet" },
     { title: "Read Receipts", body: "Upgrade when you want clearer signals in serious chats.", href: "/vip" },
+    { title: "Profile Spotlight", body: "A complete profile gets better introductions and warmer replies.", href: "/my-profile?edit=1" },
   ];
 
   return (
-    <div className="mx-auto grid h-[calc(100dvh-82px)] max-w-[1680px] gap-4 overflow-hidden px-4 py-4 sm:px-6 lg:grid-cols-[130px_260px_minmax(420px,1fr)_130px_130px] lg:px-8">
+    <div className="mx-auto grid h-[calc(100dvh-82px)] max-w-[1500px] gap-4 overflow-hidden px-4 py-4 sm:px-6 lg:grid-cols-[190px_260px_minmax(440px,1fr)_190px] lg:px-8">
       <aside className="hidden min-h-0 space-y-3 overflow-y-auto lg:block">
-        {adBanners.slice(0, 3).map((banner) => <MessagingHouseBanner key={banner.title} {...banner} />)}
+        {adBanners.slice(0, 2).map((banner) => <MessagingHouseBanner key={banner.title} {...banner} />)}
       </aside>
 
       <Card className={`${listVisibleOnMobile ? "flex" : "hidden lg:flex"} min-h-0 flex-col overflow-hidden bg-white p-4`}>
@@ -295,7 +296,7 @@ export function MessagingView({
         {notice && <div className="p-4"><Toast tone="success">{notice}</Toast></div>}
         {active ? (
           <>
-            <div className="flex items-center justify-between gap-4 border-b border-cream-300 p-4">
+            <div className="flex flex-col gap-4 border-b border-cream-300 p-4 xl:flex-row xl:items-start xl:justify-between">
               <div className="min-w-0">
                 <button type="button" className="mb-3 inline-flex items-center gap-2 text-sm font-bold text-burgundy lg:hidden" onClick={clearActiveConversation}>
                   <ArrowLeft size={16} />
@@ -304,27 +305,27 @@ export function MessagingView({
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-mauve">Chat with</p>
                 <h2 className="truncate font-serif text-3xl font-bold text-burgundy">{active.otherName}</h2>
               </div>
-              <div className="flex max-w-[250px] flex-wrap justify-end gap-2">
-                <Button type="button" variant={active.favourite ? "gold" : "ghostLight"} onClick={() => saveTag({ favourite: !active.favourite })}>
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap xl:max-w-[360px] xl:justify-end">
+                <Button type="button" variant={active.favourite ? "gold" : "ghostLight"} className="min-h-10 px-3 py-2 text-xs" onClick={() => saveTag({ favourite: !active.favourite })}>
                   <Star size={16} />
                   Favourite
                 </Button>
-                <Button type="button" variant="ghostLight" onClick={archiveConversation}>
+                <Button type="button" variant="ghostLight" className="min-h-10 px-3 py-2 text-xs" onClick={archiveConversation}>
                   <Archive size={16} />
                   {active.archived ? "Restore" : "Archive"}
                 </Button>
                 {active.blockedByMe ? (
-                  <Button type="button" variant="ghost" className="border-verified/25 bg-verified/5 text-verified" onClick={unblockConversation}>
+                  <Button type="button" variant="ghost" className="min-h-10 border-verified/25 bg-verified/5 px-3 py-2 text-xs text-verified" onClick={unblockConversation}>
                     <Undo2 size={16} />
                     Unblock
                   </Button>
                 ) : (
-                  <Button type="button" variant="ghost" className="border-danger/25 bg-danger/5 text-danger" onClick={blockConversation} disabled={active.blockedByOther}>
+                  <Button type="button" variant="ghost" className="min-h-10 border-danger/25 bg-danger/5 px-3 py-2 text-xs text-danger" onClick={blockConversation} disabled={active.blockedByOther}>
                     <Ban size={16} />
                     {active.blockedByOther ? "Blocked" : "Block"}
                   </Button>
                 )}
-                <Button type="button" variant="ghost" className="border-danger/25 bg-danger/5 text-danger" onClick={() => setReportOpen((value) => !value)}>
+                <Button type="button" variant="ghost" className="min-h-10 border-danger/25 bg-danger/5 px-3 py-2 text-xs text-danger" onClick={() => setReportOpen((value) => !value)}>
                   <Flag size={16} />
                   Report
                 </Button>
@@ -396,8 +397,8 @@ export function MessagingView({
                   </button>
                 </div>
               ) : null}
-              <div className="flex gap-2 sm:gap-3">
-                <label className={`grid min-h-12 w-11 shrink-0 place-items-center rounded-full border border-cream-300 bg-cream text-burgundy sm:w-12 ${active.blocked || sending ? "opacity-50" : "cursor-pointer"}`} aria-label="Attach photo">
+              <div className="flex items-end gap-2 sm:gap-3">
+                <label className={`grid h-12 w-12 shrink-0 place-items-center rounded-full border border-cream-300 bg-cream text-burgundy ${active.blocked || sending ? "opacity-50" : "cursor-pointer"}`} aria-label="Attach photo">
                   <ImagePlus size={18} />
                   <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" disabled={active.blocked || sending} onChange={selectImage} />
                 </label>
@@ -411,13 +412,13 @@ export function MessagingView({
                   onSent={() => void loadConversation(active.id, { quiet: true, resetComposer: false })}
                 />
                 <textarea
-                  className="min-h-12 min-w-0 flex-1 resize-none rounded-3xl border border-cream-300 bg-cream px-4 py-3 text-sm outline-none focus:border-gold"
+                  className="h-12 min-h-12 min-w-0 flex-1 resize-none rounded-3xl border border-cream-300 bg-cream px-4 py-3 text-sm leading-6 outline-none focus:border-gold"
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   placeholder={active.blocked ? "Conversation blocked" : imagePreviewUrl ? "Optional caption..." : "Write a thoughtful message..."}
                   disabled={active.blocked || sending}
                 />
-                <Button type="submit" variant="primary" className="w-16 shrink-0 px-0 sm:w-auto sm:px-5" disabled={active.blocked || sending || (!draft.trim() && !imageFile)}>
+                <Button type="submit" variant="primary" className="h-12 w-14 shrink-0 px-0 sm:w-24 sm:px-4" disabled={active.blocked || sending || (!draft.trim() && !imageFile)}>
                   <Send size={18} />
                   <span className="hidden sm:inline">Send</span>
                 </Button>
@@ -437,10 +438,7 @@ export function MessagingView({
       </Card>
 
       <aside className="hidden min-h-0 space-y-3 overflow-y-auto lg:block">
-        {adBanners.slice(0, 2).map((banner) => <MessagingHouseBanner key={`right-a-${banner.title}`} {...banner} />)}
-      </aside>
-      <aside className="hidden min-h-0 space-y-3 overflow-y-auto lg:block">
-        {adBanners.slice(1, 3).map((banner) => <MessagingHouseBanner key={`right-b-${banner.title}`} {...banner} />)}
+        {adBanners.slice(2, 4).map((banner) => <MessagingHouseBanner key={`right-b-${banner.title}`} {...banner} />)}
       </aside>
     </div>
   );

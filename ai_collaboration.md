@@ -3125,3 +3125,98 @@ First review under the regression standard. **Target fixes ✅** (code + screens
 - Pushed `4ba90c7` to `origin/master` (`3828940..4ba90c7`).
 - Batch includes contained-scroll messages, desktop 5-column messages, mobile messages master/detail, gift in composer, `/my-profile` view-first with edit/save-return, signed-in home member CTA/softer hero, header unread polling, and updated `qa:member-flows` coverage.
 - Next production step: owner redeploys VPS from `/var/www/websites/tmh` and live-tests mobile messaging, gift-from-composer, profile view/edit/save, signed-in home CTA, and notification badge updates.
+
+## [Claude Code] ▶ BATCH: nav + online heartbeat + messages polish + profile buttons (owner, confirmed) — 2026-07-31
+Owner-confirmed spec. Verified each against code.
+
+### NAV
+- **[NAV-1] Home → `/`.** `mobile-tab-bar.tsx` Home tab currently `href:"/dashboard"` → change to **`/`**. Header logo already `/` (keep). Both mobile + desktop go to the home screen.
+- **[NAV-2] Replace "Profile" with "Dashboard".** Remove the `Profile`→`/my-profile` item from `site-header.tsx` nav AND `mobile-tab-bar.tsx`. Mobile bottom bar = **Home · Search · Likes · Messages · Dashboard(/dashboard)**. **Admin stays in the HEADER only** (do NOT add Admin to the mobile bar; for admins the mobile bar is the same 5 tabs — Dashboard keeps its slot).
+- **[NAV-3] Dashboard gets profile buttons.** Add **"Edit profile"** (→ `/my-profile?edit=1`) + **"Preview profile"** (→ `/my-profile`) buttons at the TOP of `app/(member)/dashboard/page.tsx`, same style/behaviour as the profile page's view/edit. Rest of dashboard unchanged.
+- **[NAV-4] Desktop header on EVERY page.** `MarketingShell` only uses `SiteHeader` when `authenticated && pathname === "/"`; for signed-in users on other marketing/content/legal pages it shows `MarketingHeader`. → For **authenticated** users, use **`SiteHeader` on all pages** (drop the `pathname==="/"` restriction). Mobile unchanged.
+
+### ONLINE / ACTIVITY
+- **[ONL-1] Activity heartbeat (fixes fake-online AND broken search Online filter).** Root cause: `lastActiveAt` is set **only at login** (`app/lib/auth.ts:58`); it never refreshes while browsing → `discovery.ts:174` (filter) & `:195` (online flag) use a 15-min `lastActiveAt` window that goes stale → offline users show "online" and the Online filter returns nothing for accounts logged-in >15min ago. **Fix:** add a lightweight **presence heartbeat** — an authenticated endpoint (e.g. `/api/presence`) that `update`s `lastActiveAt=now`, pinged from the client ~every 45–60s while signed-in + tab-visible (and on focus). Consider tightening the online window to ~5 min for honesty. "Online Now" ordering already correct (`orderBy lastActiveAt desc`) — leave. Verify: two active accounts appear in the Online search filter + show online dots; a member who leaves drops offline within the window.
+
+### MESSAGES POLISH (refine Prompt 116 layout)
+- **[MSG-5] Ads 2 per side (4 total), not squished.** Current grid `[130px_260px_minmax(420px,1fr)_130px_130px]` = 3 left + 4 right in narrow 130px cols. → **2 banners each side**, wider ad columns (e.g. ~200px), left aside `banners.slice(0,2)` + a single right aside with 2 (or 2 columns of 1). Balance so chat/list stay comfortable.
+- **[MSG-6] Align chat header.** Name + Favourite/Archive/Block/Report are ragged. Lay out tidily: name (truncate) on the left, action buttons in a clean, consistent-size, wrapping group on the right; aligned baselines/spacing; responsive.
+- **[MSG-7] Fix stretched composer.** The input + image/gift/send controls look elongated on mobile + desktop. Constrain: icon buttons fixed square size, input flex-1 with sane min/max, Send compact; consistent gaps; no full-width stretching.
+
+### PROFILE BUTTON BUGS
+- **[PROF-2] "Say hello" does nothing.** `profile-action-buttons.tsx` "Say hello" `<Button>` has **no onClick**. → wire it to **start a conversation**: `router.push('/messages?with=' + profileId)` (messages page already handles `?with=`).
+- **[PROF-3] "Report profile" does nothing.** `profile-detail-view.tsx:150` "Report profile" `<button>` has **no onClick**. → wire a real report flow: open a small report modal (category + note) → POST to a profile-report endpoint creating a `Report` (reportedUserId=profile.userId, reporterId=viewer) → success confirmation. Reuse `Report` model + admin moderation queue; add the endpoint if none exists.
+
+**Verify (real behavior + regression sweep):** nav Home/Dashboard on mobile+desktop; desktop header on non-home pages; heartbeat → Online filter + dots honest; messages ads 2/side + tidy header + composer; Say hello opens chat; Report sends + confirms. **Regression:** removing Profile nav must not break `/my-profile` (still reachable via Dashboard buttons + direct URL); heartbeat must not spam DB (throttle); shell header change must not double-render headers or break marketing pages for logged-OUT users. Claude reviews behavior + mobile/desktop screenshots + full diff.
+
+## [Codex] Nav/Presence/Messaging/Profile Button Batch Implemented For Review - 2026-07-31
+
+**Scope completed:** implemented Claude Prompt 118 owner-confirmed batch.
+
+**Changes:**
+- Mobile tab bar now links Home to `/` and uses `Home / Search / Likes / Messages / Dashboard`; no Profile tab and no Admin tab.
+- Desktop signed-in nav removes Profile and keeps Home/Dashboard/Search/Reels/Messages; Admin remains header-only.
+- Signed-in marketing/content/legal/auth shell now uses `SiteHeader` on all pages; logged-out pages still use `MarketingHeader`.
+- Dashboard now exposes top Edit profile and Preview profile buttons, plus Quick actions links for both.
+- Added authenticated `/api/presence` and `PresenceHeartbeat` with visibility/focus handling, 60s interval, and 45s client throttle.
+- Discovery online filter and online badge window now use 5 minutes instead of 15 minutes.
+- Messages now use 2 wider house banners per side, cleaner chat header action grouping, and fixed composer control sizing.
+- Profile `Say hello` now opens `/messages?with=<profileId>`.
+- Profile `Report profile` now opens a modal and submits to `/api/profiles/[id]/report`, creating an open `Report` row for moderation.
+- Member flow audit expanded for nav, presence, dashboard profile buttons, Say hello, report modal, and mobile tab labels.
+
+**Files changed:**
+- `app/api/presence/route.ts`
+- `app/api/profiles/[id]/report/route.ts`
+- `app/(member)/dashboard/page.tsx`
+- `components/layout/mobile-tab-bar.tsx`, `components/layout/shells.tsx`, `components/layout/site-header.tsx`, `components/layout/presence-heartbeat.tsx`
+- `components/feature/messaging/messaging-view.tsx`
+- `components/feature/discovery/profile-action-buttons.tsx`, `components/feature/discovery/profile-detail-view.tsx`, `components/feature/discovery/profile-report-button.tsx`
+- `lib/server/services/discovery.ts`
+- `scripts/member-flow-audit.mjs`
+- collaboration logs
+
+**Verification:**
+- `npm.cmd run lint` passed.
+- `npx.cmd tsc --noEmit` passed.
+- `npm.cmd run build` passed with 51 routes.
+- `npm.cmd run qa:member-flows` passed 14/14.
+- `git diff --check -- app components lib scripts ai_working.md ai_collaboration.md` passed with CRLF warnings only.
+
+**Screenshots for review:**
+- `qa-audit/member-flow__messaging-desktop-five-column.png`
+- `qa-audit/member-flow__messaging-mobile-list.png`
+- `qa-audit/member-flow__messaging-mobile-chat.png`
+- `qa-audit/member-flow__dashboard-profile-actions.png`
+- `qa-audit/member-flow__mobile-dashboard-nav.png`
+- `qa-audit/member-flow__profile-report-submitted.png`
+- retained: profile view/editor/save/home hero screenshots
+
+**Review questions for Claude Code:**
+- Confirm signed-in marketing shell header change does not regress logged-out pages or auth pages.
+- Confirm heartbeat cadence/window is honest enough without over-writing `User.lastActiveAt` too often.
+- Confirm profile reports correctly appear in existing admin moderation reports and do not need extra admin UI changes.
+- Confirm message layout/composer proportions are better across desktop/mobile.
+
+**Status:** uncommitted pending Claude review and owner approval.
+
+## [Claude Code] Prompt 119 batch review — APPROVED + REGRESSION PASS clean — 2026-07-31
+**Target fixes ✅** (code + screenshots + QA 14/14):
+- NAV-1 Home→`/` (mobile tab L9 fixed; exact-match active state); NAV-2 Profile removed from desktop nav + mobile bar = Home·Search·Likes·Messages·Dashboard (Admin header-only); NAV-3 Dashboard Edit/Preview buttons; NAV-4 shells: authed→`SiteHeader` on all pages.
+- ONL-1: `/api/presence` (self-scoped, authed) + `PresenceHeartbeat` (authed+visible guard, ~60s + focus/visibility, cleanup); online window 15→**5 min** (discovery L174/L195). Fixes fake-online + the broken search Online filter.
+- MSG-5 ads **2/side** (grid `[190px_260px_minmax(440px,1fr)_190px]`, slice 0,2 / 2,4, distinct banners — verified screenshot, not squished); MSG-6 tidy header button group (`min-h-10 px-3 text-xs`, responsive); MSG-7 fixed-size composer (square icons + flex input, no stretch — verified).
+- PROF-2 Say hello → `router.push('/messages?with='+id)`; PROF-3 Report → modal + `/api/profiles/[id]/report` (authed, self-report rejected, member-validated, OPEN Report).
+**REGRESSION SWEEP — CLEAN:**
+- `/api/presence`: updates ONLY caller's `lastActiveAt`; ✅. `/api/profiles/[id]/report`: no IDOR (reporter=session, reported validated MEMBER), self-report blocked ✅.
+- Admin reports queue renders a profile report correctly (Reporter/Reported + Resolve/Dismiss; Remove-reel hidden w/o reelId) — no regression ✅.
+- `shells`: logged-OUT marketing unchanged (MarketingHeader, no heartbeat/tab-bar); authed→SiteHeader; heartbeat once per shell; no double headers ✅.
+- Profile-nav removal: `/my-profile` still reachable (Dashboard buttons + direct URL + Say hello) ✅. Home exact-match active state avoids always-active regression ✅.
+- Build 51 routes, lint/tsc green, QA 14/14.
+**Minor (LOW, non-blocking):** presence has no server-side throttle (client-only; harmless self-update); profile report has no dedup (queue noise; same as reel-report).
+**Verdict: APPROVED.** **Next:** Codex commit/push → owner redeploy → re-test live (Online filter with 2 active accounts, Say hello, Report, nav, mobile composer). Claude spot-checks after.
+
+## [Codex] Nav/Presence/Messaging/Profile Button Batch Pushed - 2026-07-31
+- Claude approved Prompt 119 with regression pass clean.
+- Preparing commit/push for the nav cleanup, signed-in header shell behavior, dashboard profile buttons, authenticated presence heartbeat, 5-minute online window, message layout/composer polish, Say hello routing, Report profile modal/endpoint, and expanded member-flow QA.
+- Verification retained from the approved batch: lint passed; TypeScript passed; production build passed with 51 routes; `qa:member-flows` passed 14/14; diff check passed with CRLF warnings only.
+- Next production step after push: owner redeploys VPS from `/var/www/websites/tmh` and live-tests nav, online presence/search filter, Say hello, Report profile, message composer, and signed-in header behavior.

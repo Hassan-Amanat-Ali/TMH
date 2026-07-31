@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, Camera, Coins, Crown, Heart, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { Bell, Camera, Coins, Crown, Eye, Heart, Pencil, ShieldCheck, Sparkles, Users } from "lucide-react";
 import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/server/session";
 import { getDashboardData } from "@/lib/server/services/member-self-service";
@@ -19,6 +19,16 @@ export default async function DashboardPage() {
             <div>
               <h1 className="font-serif text-5xl font-bold text-gold-light">Welcome back, {data.profile.displayName || data.profile.name}</h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-cream-200">Your account, activity, notifications, and match prompts live together here.</p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Link href="/my-profile?edit=1" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-gold px-5 py-2.5 text-sm font-bold text-burgundy-dark shadow-soft hover:bg-gold-light">
+                  <Pencil className="h-4 w-4" />
+                  Edit profile
+                </Link>
+                <Link href="/my-profile" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-gold/35 bg-white/10 px-5 py-2.5 text-sm font-bold text-gold-light hover:bg-white/15">
+                  <Eye className="h-4 w-4" />
+                  Preview profile
+                </Link>
+              </div>
             </div>
             <Card className="border-gold/30 bg-cream/95 p-5 text-ink">
               <div className="flex items-center justify-between">
@@ -75,7 +85,8 @@ export default async function DashboardPage() {
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-gold-light">Quick actions</p>
             <div className="mt-4 grid gap-3">
               <Link href="/search" className="rounded-full bg-gold px-5 py-3 text-center text-sm font-bold text-burgundy-dark">Browse matches</Link>
-              <Link href="/my-profile" className="rounded-full border border-gold/30 px-5 py-3 text-center text-sm font-bold text-cream">Edit profile</Link>
+              <Link href="/my-profile?edit=1" className="rounded-full border border-gold/30 px-5 py-3 text-center text-sm font-bold text-cream">Edit profile</Link>
+              <Link href="/my-profile" className="rounded-full border border-gold/30 px-5 py-3 text-center text-sm font-bold text-cream">Preview profile</Link>
               <Link href="/verify-me" className="rounded-full border border-gold/30 px-5 py-3 text-center text-sm font-bold text-cream">Verify me</Link>
             </div>
           </Card>

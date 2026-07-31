@@ -1,12 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Flag, MapPin, MessageCircle, ShieldCheck, Sparkles } from "lucide-react";
+import { MapPin, MessageCircle, ShieldCheck, Sparkles } from "lucide-react";
 import type { DiscoveryProfile } from "@/lib/server/services/discovery";
 import { Badge, Card, Chip } from "@/components/ui";
 import { MatchBadge } from "./match-badge";
 import { ProfileActionButtons } from "./profile-action-buttons";
 import { ProfileVisitTracker } from "./profile-visit-tracker";
+import { ProfileReportButton } from "./profile-report-button";
 import { SendGiftButton, type GiftOption } from "@/components/feature/economy/send-gift-button";
 
 export function ProfileDetailView({
@@ -148,10 +149,7 @@ export function ProfileDetailView({
               <h2 className="font-serif text-2xl font-bold">Safety</h2>
             </div>
             <p className="mt-3 text-sm leading-6 text-mauve-dark">Verified signals, anti-leakage rules, and report tools keep early conversations on-platform.</p>
-            {!preview && <button className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-danger">
-              <Flag size={16} />
-              Report profile
-            </button>}
+            {!preview && <ProfileReportButton profileId={profile.userId} profileName={profile.name} />}
           </Card>
           <Card className="bg-white p-5">
             <div className="flex items-center gap-3 text-burgundy">

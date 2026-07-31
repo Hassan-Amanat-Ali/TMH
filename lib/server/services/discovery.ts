@@ -171,7 +171,7 @@ function buildDiscoveryWhere(viewerId?: string | null, filters: DiscoveryFilters
     id: viewerId ? { not: viewerId } : undefined,
     role: "MEMBER",
     status: "ACTIVE",
-    ...(filters.onlineOnly ? { lastActiveAt: { gte: new Date(Date.now() - 1000 * 60 * 15) } } : {}),
+    ...(filters.onlineOnly ? { lastActiveAt: { gte: new Date(Date.now() - 1000 * 60 * 5) } } : {}),
     ...(filters.verifiedOnly ? { verifications: { some: { status: "APPROVED", type: { in: ["PHOTO", "ID"] } } } } : {}),
     ...(filters.newOnly ? { createdAt: { gte: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14) } } : {}),
     ...(filters.hasReelOnly ? { reels: { some: { status: "ACTIVE", moderation: "APPROVED", expiresAt: { gt: new Date() } } } } : {}),
@@ -192,7 +192,7 @@ function mapUserToDiscoveryProfile(
   const profile = user.profile;
   const photos = user.photos.map((photo) => photo.url);
   const verified = user.verifications.length > 0;
-  const online = profile.stealthMode ? false : Boolean(user.lastActiveAt && Date.now() - user.lastActiveAt.getTime() < 1000 * 60 * 15);
+  const online = profile.stealthMode ? false : Boolean(user.lastActiveAt && Date.now() - user.lastActiveAt.getTime() < 1000 * 60 * 5);
   const matchPercent = estimateMatch({
     membership: user.membership,
     tier: profile.tier,
