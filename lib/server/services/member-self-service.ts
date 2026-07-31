@@ -6,13 +6,28 @@ export type MemberProfileForm = {
   displayName: string;
   headline: string;
   bio: string;
+  gender: string;
+  seeking: string;
+  dateOfBirth: string;
+  age: string;
   intent: string;
+  heightCm: string;
+  bodyType: string;
+  children: string;
+  wantChildren: string;
+  smoking: string;
+  drinking: string;
+  religion: string;
+  education: string;
   locationText: string;
   countryCode: string;
   profession: string;
+  exercise: string;
+  relocate: string;
   languages: string;
   interests: string;
   goals: string;
+  photos: Array<{ id: string; url: string; isPrimary: boolean }>;
   completion: number;
   membership: "STANDARD" | "VIP";
   coinBalance: number;
@@ -72,25 +87,45 @@ export function estimateCompletion(input: {
   displayName?: string | null;
   headline?: string | null;
   bio?: string | null;
+  gender?: string | null;
+  seeking?: string | null;
+  age?: number | null;
   locationText?: string | null;
   profession?: string | null;
   languages?: string | null;
   interests?: string | null;
   goals?: string | null;
 }) {
-  const fields = [input.displayName, input.headline, input.bio, input.locationText, input.profession, input.languages, input.interests, input.goals];
+  const fields = [input.displayName, input.headline, input.bio, input.gender, input.seeking, input.age, input.locationText, input.profession, input.languages, input.interests, input.goals];
   return Math.round((fields.filter(Boolean).length / fields.length) * 100);
 }
 
 export function profilePatchToData(input: Partial<MemberProfileForm>) {
+  const age = input.age ? Number(input.age) : undefined;
+  const heightCm = input.heightCm ? Number(input.heightCm) : undefined;
+  const dateOfBirth = input.dateOfBirth ? new Date(input.dateOfBirth) : undefined;
   const profile = {
     displayName: input.displayName?.trim() || undefined,
     headline: input.headline?.trim() || undefined,
     bio: input.bio?.trim() || undefined,
+    gender: input.gender?.trim() ? input.gender.trim() as "WOMAN" | "MAN" | "LADYBOY" | "OTHER" : undefined,
+    seeking: input.seeking?.trim() ? input.seeking.trim() as "WOMAN" | "MAN" | "LADYBOY" | "OTHER" : undefined,
+    dateOfBirth: dateOfBirth && Number.isFinite(dateOfBirth.getTime()) ? dateOfBirth : undefined,
+    age: Number.isFinite(age) && age ? age : undefined,
     intent: input.intent?.trim() || undefined,
+    heightCm: Number.isFinite(heightCm) && heightCm ? heightCm : undefined,
+    bodyType: input.bodyType?.trim() || undefined,
+    children: input.children?.trim() || undefined,
+    wantChildren: input.wantChildren?.trim() || undefined,
+    smoking: input.smoking?.trim() || undefined,
+    drinking: input.drinking?.trim() || undefined,
+    religion: input.religion?.trim() || undefined,
+    education: input.education?.trim() || undefined,
     locationText: input.locationText?.trim() || undefined,
     countryCode: input.countryCode?.trim().toUpperCase() || undefined,
     profession: input.profession?.trim() || undefined,
+    exercise: input.exercise?.trim() || undefined,
+    relocate: input.relocate?.trim() || undefined,
     languages: input.languages !== undefined ? toJsonList(input.languages) : undefined,
     interests: input.interests !== undefined ? toJsonList(input.interests) : undefined,
     goals: input.goals !== undefined ? toJsonList(input.goals) : undefined,
@@ -107,13 +142,28 @@ function emptyProfile(): MemberProfileForm {
     displayName: "",
     headline: "",
     bio: "",
+    gender: "",
+    seeking: "",
+    dateOfBirth: "",
+    age: "",
     intent: "",
+    heightCm: "",
+    bodyType: "",
+    children: "",
+    wantChildren: "",
+    smoking: "",
+    drinking: "",
+    religion: "",
+    education: "",
     locationText: "",
     countryCode: "",
     profession: "",
+    exercise: "",
+    relocate: "",
     languages: "",
     interests: "",
     goals: "",
+    photos: [],
     completion: 0,
     membership: "STANDARD",
     coinBalance: 0,
@@ -132,7 +182,7 @@ export async function getOwnProfile(userId: string): Promise<MemberProfileForm> 
     include: {
       profile: true,
       wallet: true,
-      photos: { select: { id: true } },
+      photos: { orderBy: [{ isPrimary: "desc" }, { position: "asc" }, { createdAt: "asc" }], select: { id: true, url: true, isPrimary: true } },
       reels: { where: { status: "ACTIVE" }, select: { id: true } },
       verifications: { where: { type: "PHOTO" }, orderBy: { submittedAt: "desc" }, take: 1 },
     },
@@ -144,13 +194,28 @@ export async function getOwnProfile(userId: string): Promise<MemberProfileForm> 
     displayName: user.profile?.displayName || user.name || "",
     headline: user.profile?.headline || "",
     bio: user.profile?.bio || "",
+    gender: user.profile?.gender || "",
+    seeking: user.profile?.seeking || "",
+    dateOfBirth: user.profile?.dateOfBirth ? user.profile.dateOfBirth.toISOString().slice(0, 10) : "",
+    age: user.profile?.age ? String(user.profile.age) : "",
     intent: user.profile?.intent || "",
+    heightCm: user.profile?.heightCm ? String(user.profile.heightCm) : "",
+    bodyType: user.profile?.bodyType || "",
+    children: user.profile?.children || "",
+    wantChildren: user.profile?.wantChildren || "",
+    smoking: user.profile?.smoking || "",
+    drinking: user.profile?.drinking || "",
+    religion: user.profile?.religion || "",
+    education: user.profile?.education || "",
     locationText: user.profile?.locationText || "",
     countryCode: user.profile?.countryCode || "",
     profession: user.profile?.profession || "",
+    exercise: user.profile?.exercise || "",
+    relocate: user.profile?.relocate || "",
     languages: parseList(user.profile?.languages),
     interests: parseList(user.profile?.interests),
     goals: parseList(user.profile?.goals),
+    photos: user.photos.map((photo) => ({ id: photo.id, url: photo.url, isPrimary: photo.isPrimary })),
     completion: user.profile?.completion || 0,
     membership: user.membership,
     coinBalance: user.wallet?.coinBalance || 0,

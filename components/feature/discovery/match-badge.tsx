@@ -6,10 +6,10 @@ export function MatchBadge({ percent, size = "md" }: { percent: number; size?: "
   };
 
   return (
-    <div className={`grid ${sizes[size]} place-items-center rounded-full border border-gold/45 bg-cream text-center font-bold text-burgundy shadow-soft`}>
+    <div className={`grid ${sizes[size]} place-items-center rounded-full border border-gold/70 bg-burgundy text-center font-bold text-gold-light shadow-soft`}>
       <span>
         {percent}
-        <small className="block text-[10px] uppercase tracking-[0.18em] text-mauve-dark">match</small>
+        <small className="block text-[10px] uppercase tracking-[0.18em] text-cream">match</small>
       </span>
     </div>
   );

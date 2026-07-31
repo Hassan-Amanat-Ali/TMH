@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ChangeEvent, FormEvent, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Archive, Ban, Flag, ImagePlus, Languages, Send, Star, Tag, Undo2, X } from "lucide-react";
 import { Button, Card, Toast } from "@/components/ui";
 import { SendGiftButton, type GiftOption } from "@/components/feature/economy/send-gift-button";
@@ -37,25 +37,61 @@ export function MessagingView({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState("");
   const [translations, setTranslations] = useState<Record<string, string>>({});
+  const activeIdRef = useRef(initialConversation?.id || "");
 
-  async function loadConversation(conversationId: string) {
-    setError("");
-    setNotice("");
+  const refreshConversations = useCallback(async () => {
+    const params = new URLSearchParams();
+    if (initialFilters.favourite) params.set("favourite", "1");
+    if (initialFilters.archived) params.set("archived", "1");
+    if (initialFilters.label) params.set("label", initialFilters.label);
+    const query = params.toString();
+    const response = await fetch(`/api/messages/conversations${query ? `?${query}` : ""}`);
+    const data = (await response.json().catch(() => null)) as { conversations?: ConversationSummary[] } | null;
+    if (response.ok && data?.conversations) {
+      setConversations(data.conversations.map((conversation) => (
+        conversation.id === activeIdRef.current ? { ...conversation, unreadCount: 0 } : conversation
+      )));
+    }
+  }, [initialFilters.archived, initialFilters.favourite, initialFilters.label]);
+
+  const loadConversation = useCallback(async (conversationId: string, options: { quiet?: boolean; resetComposer?: boolean } = {}) => {
+    if (!options.quiet) {
+      setError("");
+      setNotice("");
+    }
     const response = await fetch(`/api/messages/conversations/${conversationId}/messages`);
-    const data = (await response.json()) as { conversation?: ConversationDetail; error?: string };
-    if (!response.ok || !data.conversation) {
-      setError(data.error || "Could not open conversation.");
+    const data = (await response.json().catch(() => null)) as { conversation?: ConversationDetail; error?: string } | null;
+    const conversation = data?.conversation;
+    if (!response.ok || !conversation) {
+      if (!options.quiet) setError(data?.error || "Could not open conversation.");
       return;
     }
-    setActive(data.conversation);
-    setLabel(data.conversation.label || "");
-    setReportOpen(false);
-    setReportNote("");
-    setImageFile(null);
-    setImagePreviewUrl("");
+    activeIdRef.current = conversation.id;
+    setActive((current) => current?.id === conversation.id || !current || !options.quiet ? conversation : current);
+    if (!options.quiet || !label) setLabel(conversation.label || "");
+    if (options.resetComposer !== false) {
+      setReportOpen(false);
+      setReportNote("");
+      setImageFile(null);
+      setImagePreviewUrl("");
+    }
     void fetch(`/api/messages/conversations/${conversationId}/read`, { method: "POST" });
     setConversations((items) => items.map((item) => item.id === conversationId ? { ...item, unreadCount: 0 } : item));
-  }
+  }, [label]);
+
+  useEffect(() => {
+    activeIdRef.current = active?.id || "";
+  }, [active?.id]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (document.hidden) return;
+      const activeId = activeIdRef.current;
+      if (activeId) void loadConversation(activeId, { quiet: true, resetComposer: false });
+      void refreshConversations();
+    }, 4000);
+    return () => window.clearInterval(interval);
+  }, [loadConversation, refreshConversations]);
 
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
@@ -85,7 +121,7 @@ export function MessagingView({
         return;
       }
       if (data.warning) setNotice(data.warning);
-      await loadConversation(active.id);
+      await loadConversation(active.id, { resetComposer: false });
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : "Could not send message.");
       setDraft(body);
@@ -246,11 +282,11 @@ export function MessagingView({
                 <h2 className="font-serif text-3xl font-bold text-burgundy">{active.otherName}</h2>
               </div>
               <div className="flex flex-wrap justify-end gap-2">
-                <Button type="button" variant={active.favourite ? "gold" : "ghost"} className={active.favourite ? "" : "border-burgundy/15 bg-cream text-burgundy"} onClick={() => saveTag({ favourite: !active.favourite })}>
+                <Button type="button" variant={active.favourite ? "gold" : "ghostLight"} onClick={() => saveTag({ favourite: !active.favourite })}>
                   <Star size={16} />
                   Favourite
                 </Button>
-                <Button type="button" variant="ghost" className="border-burgundy/15 bg-cream text-burgundy" onClick={archiveConversation}>
+                <Button type="button" variant="ghostLight" onClick={archiveConversation}>
                   <Archive size={16} />
                   {active.archived ? "Restore" : "Archive"}
                 </Button>

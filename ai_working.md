@@ -12,7 +12,7 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 
 ---
 
-**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 102** · **Codex → Prompt 101**
+**Sync status** — each agent updates this when it acts, so the other sees at a glance how far to catch up: **Claude Code → Prompt 111** · **Codex → Prompt 110**
 
 ---
 
@@ -1239,3 +1239,88 @@ Short per-cycle handoff between **Codex** and **Claude Code**. The deep board is
 - Push checkpoint: pushed amended commit `8c131a5` (`feat: add r2 media uploads`) from local `master` to `origin/master`.
 - Owner/VPS next steps: pull `origin/master`, ensure R2 env vars exist in `/var/www/websites/tmh/.env`, run `npm ci`, `npm run build`, `pm2 restart tmh --update-env`, then live-test profile photo upload/display via `media.thaimyheart.com`.
 - Claude review next: after owner redeploys and tests upload, review live UI/media behavior and the house-banner treatment in empty ad slots.
+
+## Prompt 104 Codex
+- User reported `done` after the VPS redeploy command set for the R2 media upload batch.
+- Interpreted as: owner likely ran `git pull origin master`, dependency/build steps, and PM2 restart on `/var/www/websites/tmh`.
+- Next verification to request from owner: confirm latest commit on VPS, app health, PM2 status, and live media upload/display behavior through `media.thaimyheart.com`.
+
+## Prompt 105 Codex
+- Owner provided VPS redeploy verification output after R2 media upload batch.
+- Observed `git pull origin master` fast-forwarded VPS from `827a87d` to `cd14b3d`.
+- Observed `npm ci` completed with existing audit warnings: 20 vulnerabilities reported by npm audit; no install failure.
+- Owner edited `.env` with `nano .env` before build/restart.
+- Observed `npm run build` passed on VPS with Next.js 16.2.3 and 50 routes, including `/api/media/presign` and `/api/profile/photo`.
+- Observed `pm2 restart tmh --update-env` succeeded and `pm2 status tmh` showed `tmh` online.
+- Observed `curl -I https://thaimyheart.com/login` returned `HTTP/1.1 200 OK`.
+- Remaining verification: live browser upload/display test should confirm real R2 media works via `https://media.thaimyheart.com/...`.
+
+## Prompt 106 Codex
+- Owner live-tested the deployed R2 media upload flow and reported the browser shows `failed to fetch`.
+- Likely failure area: client-side upload path, either `/api/media/presign` request, direct PUT to R2 public/custom endpoint, DNS for `media.thaimyheart.com`, or Cloudflare R2 CORS/custom-domain configuration.
+- Next owner checks requested: browser DevTools Network failing request URL/status, VPS curl for `/api/media/presign` requiring auth behavior, DNS/HEAD check for `media.thaimyheart.com`, and R2 CORS verification.
+
+## Prompt 107 Codex
+- Owner pasted the R2 presigned upload URL and Cloudflare XML error.
+- Finding: pasted URL is a presigned `PutObject` URL. Opening it directly in browser sends `GET`, which produces expected `SignatureDoesNotMatch`; this does not by itself prove the app's `PUT` upload is incorrectly signed.
+- Real failed upload still needs browser DevTools evidence for the actual `PUT` request: method, status, and console error. Most likely remaining issue is R2 bucket CORS allowing `https://thaimyheart.com`/`https://www.thaimyheart.com` to `PUT` with `Content-Type`.
+- Security note: URL contains a temporary signature and R2 access key id; signature expires quickly, but avoid sharing fresh signed URLs publicly.
+
+## Prompt 108 Codex
+- Owner ran VPS checks for R2/env/app endpoints.
+- Observed `.env` contains `NEXTAUTH_URL`, `APP_URL`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (redacted by sed output), `R2_BUCKET`, and `R2_PUBLIC_HOST`.
+- Note: sed output displayed `R2_SECRET_ACCESS_\1=***hidden***` because the redaction regex matched the `KEY=` suffix inside `R2_SECRET_ACCESS_KEY`; this does not mean the `.env` variable name is wrong.
+- Observed `curl -I https://media.thaimyheart.com` returned Cloudflare `HTTP/2 404`, which is acceptable for the bucket/custom domain root if no root object exists; it confirms the hostname reaches Cloudflare.
+- Observed `curl -I https://thaimyheart.com/api/media/presign` returned `405 Method Not Allowed`, expected for GET/HEAD because presign route only supports POST; confirms the app route exists and is served by nginx/Next.
+- Next likely action: set/verify R2 CORS policy and collect browser DevTools details for the failing PUT request if upload still says `failed to fetch`.
+
+## Prompt 109 Codex
+- Owner reported the upload worked after setting the Cloudflare R2 bucket CORS policy.
+- Conclusion: the deployed R2 media upload implementation is functioning end to end after CORS was configured for `https://thaimyheart.com` and `https://www.thaimyheart.com`.
+- Root cause of `failed to fetch`: browser-side cross-origin PUT upload to R2 was blocked/misconfigured until bucket CORS allowed the site origin, `PUT`, and `Content-Type`.
+- Handoff to Claude: review the live media UX and any remaining UI/UX behavior after the R2 upload path now works. Current known non-blocking item: npm audit still reports dependency vulnerabilities; not addressed in this media batch.
+
+## Prompt 108 Claude (R2 uploads LIVE + WiFi DNS = stale cache)
+- **R2 media uploads WORKING live** (owner-confirmed; fix was Cloudflare R2 bucket CORS allowing PUT from site origin — bucket setting, not code). Custom domain media.thaimyheart.com serves. **Last big public-launch blocker done.** VPS on `cd14b3d`.
+- **WiFi-not-working:** DNS verified correct (auth + 1.1.1.1 + 8.8.8.8 → 195.110.58.111). = stale ISP/router cache on owner's WiFi; VPN uses fresh resolver. Fix: restart router / device DNS→1.1.1.1 / wait.
+- **Remaining for PUBLIC:** SES email, replace unsplash images, privacy/terms (backlog doc). Soft launch unaffected.
+- **Edited (project code):** none — review/diagnosis only.
+
+## Prompt 109 Claude (owner-found real-usage bugs — accountable)
+- Owner (rightly) frustrated: reviews missed live-usage bugs. Confirmed by code read:
+  - **UX-M1 (HIGH):** messaging has NO polling/socket → can't receive without reload (send re-fetches own msg only). Fix: poll active conversation ~4s + refresh convo list; open-on-message.
+  - **UX-M2 (Med-High):** profile editor primitive — no labels (placeholder-only), missing most Profile fields, no photo gallery. Fix: labels + full fields + gallery.
+  - **UX-M3 (Med):** no read-only profile view. Add "Preview my profile".
+  - **UX-M4:** coloring — need owner to point to 2-3 offenders, then contrast sweep.
+- **Process fix:** Codex interaction test must simulate 2 users messaging (recipient sees msg w/o reload) + verify editor labels/fields/gallery. Claude reviews REAL behavior + form/coloring states, stop rubber-stamping page-loads.
+- **Edited (project code):** none — diagnosis only.
+- **▶ Codex:** M1→M2→M3 (M4 after owner spots). Append `## Prompt 110 Codex`.
+
+## Prompt 110 Codex
+- **User cue:** `claude updated`.
+- **Read first:** latest `ai_working.md` and `ai_collaboration.md`; Claude Prompts 109 and UX-M4 requested a real-usage fix batch for messaging live updates, richer profile editor/gallery, profile preview, and invisible profile detail action/match controls.
+- **Implemented UX-M1 messaging:** `MessagingView` now polls the active conversation about every 4 seconds, pauses while `document.hidden`, marks active threads read, and refreshes the conversation list with current filters so incoming messages/unread counts appear without manual reload. `/api/messages/conversations` now honors favourite/archived/label query filters for polling refreshes.
+- **Implemented UX-M2 profile editor:** expanded the self-service profile contract and editor to include visible labels, gender/seeking/date of birth/age, height/body type, children/want children, smoking/drinking, religion, education, exercise, relocate, profession/location, and clearly-labeled comma list fields. Added a real profile-photo gallery showing uploaded R2 photos with set-primary and delete actions scoped to the signed-in user.
+- **Implemented UX-M3 preview:** `/my-profile?preview=1` now renders a read-only self-preview using `ProfileDetailView` preview mode, hiding self-interaction/report/message/gift actions and adding a Preview profile link from the editor.
+- **Implemented UX-M4 contrast fix:** added `ghostLight` Button variant for light surfaces; profile Favourite/Say hello/Wink now use it; `MatchBadge` now uses a burgundy/gold treatment so percent and `match` are readable on cream cards.
+- **QA added:** new `scripts/member-flow-audit.mjs` plus `npm run qa:member-flows`. It logs in as two members, creates/opens a conversation, sends from member A, asserts member B sees it without reload via polling, then checks profile labels/gallery/preview and captures screenshots.
+- **Verification:** `npm.cmd run lint` passed; `npx.cmd tsc --noEmit` passed; `npm.cmd run build` passed with 50 routes; scoped `git diff --check -- app components lib scripts package.json` passed with CRLF warnings only; local dev server started at `http://localhost:3000`; `npm.cmd run qa:member-flows` passed 4/4 with screenshots in `qa-audit/member-flow__*.png` and report `qa-audit/member-flow-audit.md`.
+- **Local test data note:** member-flow QA sent local/dev messages between seed/test users through the local server only; no production data touched.
+- **For Claude review:** inspect messaging polling behavior, profile editor labels/full fields/gallery controls, preview mode, profile detail compatibility/action contrast, and `qa-audit/member-flow-audit.md` screenshots. Batch is uncommitted pending review/approval.
+
+## Prompt 111 Claude (Prompt 110 review — mostly APPROVED, 2 coloring misses)
+- **Verified:** messaging polling (code + member-flow 4/4 two-user test); profile editor (screenshot: labels+all fields+photo gallery+preview link); preview mode; profile-detail buttons (ghostLight variant correct).
+- **CAUGHT — sweep missed:** `search-experience.tsx:663` "Filters" + `:744` "Save This Search" still `variant="ghost"` (text-cream) on light → invisible. Fix to ghostLight + re-grep all ghost usages.
+- **Verdict: approve after the 2 search buttons fixed + fresh profile-detail screenshot.**
+- **Edited (project code):** none — review only.
+- **▶ Codex:** fix 2 search buttons + re-sweep + profile-detail screenshot → commit/push → owner redeploy/retest. Append `## Prompt 112 Codex`.
+
+## Prompt 112 Codex
+- **User cue:** `cluade updated`.
+- **Read first:** latest `ai_working.md` and `ai_collaboration.md`; Claude Prompt 111 mostly approved Prompt 110 but required fixing two missed light-surface `ghost` buttons in search before commit/push.
+- **Fixes completed:** changed Search `Filters` and `Save This Search` buttons from `ghost` to `ghostLight`; also moved neutral light-surface Send Gift, messaging Favourite, and messaging Archive buttons to `ghostLight` for clearer future-safe intent.
+- **Ghost sweep:** re-swept all app/components `ghost` references. Remaining base `ghost` usages are limited to signup Back with explicit `text-burgundy`, and messaging status buttons with explicit `text-verified` or `text-danger`; all neutral light-surface controls now use `ghostLight`.
+- **Screenshot captured:** fresh profile detail contrast screenshot saved at `qa-audit/profile-detail-actions-contrast.png`, showing the compatibility section/action controls after the badge/button contrast fix.
+- **Verification:** `npm.cmd run lint` passed; `npx.cmd tsc --noEmit` passed; `npm.cmd run build` passed with 50 routes; `npm.cmd run qa:member-flows` passed 4/4; scoped `git diff --check -- app components lib scripts package.json ai_working.md ai_collaboration.md` passed with CRLF warnings only.
+- **Action:** committing and pushing the approved real-usage UX batch plus final search contrast fixes to `origin/master`.
+- **Next owner step after push:** redeploy VPS with `git pull origin master`, `npm ci`, `npm run build`, `pm2 restart tmh --update-env`; live smoke messaging, profile editor/gallery/preview, profile detail action contrast, and search filter/save buttons.

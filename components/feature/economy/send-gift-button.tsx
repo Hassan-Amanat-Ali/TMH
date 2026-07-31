@@ -53,7 +53,7 @@ export function SendGiftButton({
 
   return (
     <>
-      <Button type="button" variant={compact ? "gold" : "ghost"} className={compact ? "" : "border-burgundy/15 bg-cream text-burgundy"} onClick={() => setOpen(true)}>
+      <Button type="button" variant={compact ? "gold" : "ghostLight"} onClick={() => setOpen(true)}>
         <Gift size={18} />
         Send gift
       </Button>

@@ -1,13 +1,14 @@
 import { cn } from "@/lib/cn";
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "gold" | "ghost" | "danger";
+  variant?: "primary" | "gold" | "ghost" | "ghostLight" | "danger";
 };
 
 const variants = {
   primary: "bg-burgundy text-cream shadow-soft hover:bg-burgundy-dark",
   gold: "bg-gold text-burgundy-dark shadow-soft hover:bg-gold-light",
   ghost: "border border-gold/35 bg-white/5 text-cream hover:bg-white/10",
+  ghostLight: "border border-burgundy/20 bg-cream text-burgundy hover:bg-cream-200",
   danger: "bg-danger text-white hover:bg-danger/90",
 };
 

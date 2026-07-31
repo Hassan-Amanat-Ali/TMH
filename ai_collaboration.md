@@ -2901,3 +2901,114 @@ Created **`docs/TMH-LATER-AND-DECISIONS.md`** — the running backlog of deferre
 - Pushed commit `8c131a5` (`feat: add r2 media uploads`) to `origin/master`.
 - Included: Cloudflare R2 presigned uploads, media URL validation, profile/verification/reel/message attachment upload flows, fake demo fallback removal, media placeholder, and VIP/coins house-banner fallback for empty ad slots.
 - Remaining external verification: after VPS deploy and `.env` R2 values are present, owner should test real upload/display from the live site. If upload fails, first checks are DNS/custom domain for `media.thaimyheart.com`, R2 CORS, and PM2 environment refresh.
+
+## [Codex] VPS Redeploy Reported Done - 2026-07-30
+- Owner reported the redeploy step was completed after the R2 media upload/fake-content/house-banner batch was pushed.
+- Remaining checks: verify VPS is on latest commit, production build is serving, PM2 is online, and a real profile photo upload displays from the R2 public host.
+
+## [Codex] VPS R2 Batch Deploy Verified - 2026-07-30
+- Owner pasted VPS output confirming deploy reached `cd14b3d` on `origin/master`.
+- VPS build passed after `.env` edit; PM2 restarted `tmh` with `--update-env`; `/login` returned `200 OK` over HTTPS.
+- Remaining check is functional, not compile-level: upload a real profile/verification/reel/message image and confirm it persists and displays from `https://media.thaimyheart.com/...`.
+- Known non-blocking note from deploy: `npm ci` reported 20 audit vulnerabilities; not addressed in this batch.
+
+## [Codex] Live R2 Upload Failed To Fetch - 2026-07-30
+- Owner reported the deployed media upload attempt fails with `failed to fetch`.
+- Current hypothesis: the app deploy is healthy, but the browser cannot reach either the app presign endpoint or the R2 upload target. Most likely candidates are R2 CORS, R2 custom domain/DNS, or missing/malformed R2 env vars in VPS `.env`.
+- Need evidence from browser DevTools Network: exact failed request URL, method, HTTP status or CORS/DNS error text.
+
+## [Codex] R2 Signed URL GET Error Interpreted - 2026-07-30
+- Owner opened/pasted a presigned R2 `PutObject` URL and saw XML `SignatureDoesNotMatch`.
+- Interpretation: expected when a presigned PUT URL is loaded as a normal GET page. The live upload issue should be diagnosed from the browser's actual PUT request, not by opening the URL directly.
+- Next likely fix path: configure R2 bucket CORS for the production origins and then retest the in-app upload.
+
+## [Codex] R2 Endpoint Checks Interpreted - 2026-07-30
+- VPS checks show R2 env vars are present, `media.thaimyheart.com` resolves to Cloudflare, and `/api/media/presign` is deployed.
+- `media.thaimyheart.com` returning 404 at the root is not itself a failure; root object is absent, but the host is connected.
+- `/api/media/presign` returning 405 for curl HEAD/GET is expected because the route accepts POST only.
+- Current most likely blocker remains R2 CORS for browser PUT upload, unless DevTools shows the presign POST itself failing.
+
+## [Codex] R2 Upload Confirmed Working After CORS Fix - 2026-07-30
+- Owner confirmed the live upload worked after applying the R2 CORS policy.
+- Final diagnosis: app deploy, env vars, presign route, PM2, DNS/custom host, and R2 upload all work; the blocker was CORS for browser PUT uploads.
+- Handoff to Claude: R2 media storage can be treated as live. Please review remaining product/UI polish around media upload states, empty media states, house-banner placement, and any follow-up UX cleanup.
+- Residual note: npm audit vulnerabilities remain outside this batch.
+
+## [Claude Code] ✅ R2 media uploads LIVE + WiFi DNS diagnosis — 2026-07-30
+- **R2 uploads WORKING on live** (owner-confirmed). Root of earlier "failed to fetch" = **Cloudflare R2 bucket CORS policy** missing (browser direct-PUT needs the bucket to allow PUT from `https://thaimyheart.com`). Owner added the CORS policy → uploads succeed + display via `media.thaimyheart.com` (confirms custom domain too). **The last public-launch blocker (real photo uploads) is DONE.** Deployed as `8c131a5`/`cd14b3d`, VPS on `cd14b3d`.
+  - Note for later: if local dev testing of uploads is wanted, add `http://localhost:3000` to the R2 CORS allowed origins too.
+- **Owner "site works on VPN, not WiFi":** DNS confirmed correct everywhere — authoritative (Cloudflare NS) + `1.1.1.1` + `8.8.8.8` all return VPS `195.110.58.111`. ⇒ **stale ISP/router DNS cache** on the owner's WiFi from the recent nameserver move; VPN uses a fresh resolver. Fix: restart router / set device DNS to `1.1.1.1` / wait for TTL. Site + config are fine; transient + local.
+- **Remaining public-launch items** (see `docs/TMH-LATER-AND-DECISIONS.md`): SES email for public signup; replace `images.unsplash.com` hero/seed with owned assets; privacy policy/terms. (None block the invited soft launch.)
+
+## [Claude Code] 🔴 Owner-found real-usage bugs (my reviews missed these) — fix batch — 2026-07-31
+Honest note: code+static-screenshot review missed live-behavior + depth issues. These need actual usage / interaction tests. Confirmed by code read:
+
+**[UX-M1 · HIGH · messaging has no live updates]** `messaging-view.tsx` has **no polling/SSE/WebSocket** — messages load only on `loadConversation` (open) and after own send (`loadConversation` re-fetch). Incoming messages never appear without reload; conversation list doesn't refresh.
+- **Fix:** poll the **active conversation** every ~4s (merge new messages, dedupe by id, keep scroll) — pause on `document.hidden`; also periodically refresh the **conversation list** (new convos + unread) — extend the existing `/api/messages/unread` idea. Ensure "Message" from a profile **opens the conversation immediately** (no reload). (SSE is nicer but polling is fine v1.)
+
+**[UX-M2 · MED-HIGH · profile editor is primitive]** `profile-editor.tsx`: inputs have **no visible labels** (placeholder-only → vanish on input); **missing most Profile fields** (gender, seeking, dateOfBirth/age, heightCm, bodyType, children/wantChildren, smoking, drinking, religion, education, exercise, relocate); languages/interests/goals are raw comma text; **no photo gallery**.
+- **Fix:** add proper `<label>`s to every field; add the full profile field set with correct controls (selects for enums, number for age/height, chips or clearly-labeled comma inputs for lists); add a **photo gallery** (view uploaded photos, set primary, delete) using the R2 photos.
+
+**[UX-M3 · MED · no "view my profile"]** `/my-profile` renders only the editor. **Add a read-only "Preview / View my profile"** (how others see it) — reuse `profile-detail-view` for the owner's own id, or a preview toggle. Link it from the header/profile.
+
+**[UX-M4 · coloring/contrast]** Owner reports "tons" — awaiting 2–3 specific offenders. Then Codex does a **contrast sweep**: every page/state for text-on-bg, placeholder visibility, disabled/hover states, cream-on-white, gold-on-cream, etc. (Claude reviews screenshots carefully, incl. filled-in form states.)
+
+**▶ Better verification (required this batch):** Codex interaction test must **simulate two members**: A sends → assert B's open thread shows it **without reload** (after poll interval) + B's unread increments; and profile editor shows labels + all fields + a photo in the gallery. Claude reviews the actual behaviors + form/coloring screenshots — not just page loads.
+**Order:** M1 messaging (highest impact) → M2 profile editor → M3 profile view → M4 coloring (after owner points to spots).
+
+## [Claude Code] UX-M4 coloring — ROOT of invisible profile buttons (owner-pointed) — 2026-07-31
+Owner: on a profile detail page, the Compatibility/Strong-match section has invisible text — "76", "match", Like, Favourite, Say hello, Wink.
+**Root cause:** the `ghost` Button variant = `border-gold/35 bg-white/5 **text-cream**` (light text, only correct on DARK bg). `ProfileActionButtons` renders on a **light** `Card bg-cream/95` in the detail view. The `lightGhost` fix (`bg-cream text-burgundy` — dark text) is gated on `compact` and is **empty in the non-compact detail view** → Favourite/Say-hello/Wink render **cream-on-cream = invisible**. (Like = primary/gold, actually visible.) `MatchBadge` = `bg-cream text-burgundy` on the cream card → the circle blends in.
+**Fix:**
+- Make `lightGhost` (dark-text, light-bg) apply to **all** ghost action buttons in `profile-action-buttons.tsx` (Favourite, Say hello, **Wink** — Wink currently gets no light class), not only `compact`. Give ghost buttons a proper light-surface treatment (e.g. `border-burgundy/20 bg-cream text-burgundy hover:bg-cream-200`).
+- `MatchBadge`: make it visibly distinct on a cream card + high-contrast text (e.g. filled `bg-burgundy text-cream` or a strong gold ring + burgundy text). Verify "76"/"match" legible.
+- **SYSTEMIC sweep:** the `ghost` variant (`text-cream`) is only safe on dark backgrounds. Grep every `variant="ghost"` usage; any on a light card is invisible → fix or add a dedicated `ghost-light` variant. Consider making a **`ghost-light`** variant so this can't recur.
+- **Verify:** screenshot the profile detail Compatibility section (light card) — all of 76/match/Like/Favourite/Say hello/Wink clearly readable; and any other ghost-on-light spots found in the sweep. Fold into the UX-M1..M4 batch. Claude reviews the screenshot.
+
+## [Codex] Real-Usage UX Batch Implemented For Review - 2026-07-31
+
+**Scope completed:** addressed Claude's owner-found real-usage batch UX-M1 through UX-M4.
+
+**Changes:**
+- Messaging now polls the active conversation and conversation list every ~4s while the tab is visible, so incoming messages appear without reload.
+- Conversation list refreshes preserve current filters through query params on `/api/messages/conversations`.
+- Profile editor now uses visible labels and persists the broader Profile schema fields: gender, seeking, date of birth/age, height, body type, children/want children, smoking, drinking, religion, education, exercise, relocate, plus story/location/profession/list fields.
+- Profile photos now show as a gallery from R2-backed `Photo` rows, with signed-in-user-only set-primary and delete operations on `/api/profile/photo`.
+- Added `/my-profile?preview=1` self-preview mode using the public detail view without self-interaction controls.
+- Added `ghostLight` button variant for light cards and applied it to profile action buttons; match badge now has high-contrast burgundy/gold styling.
+- Added `scripts/member-flow-audit.mjs` and `qa:member-flows` for the exact two-user messaging/profile-editor QA requested by Claude.
+
+**Verification:**
+- `npm.cmd run lint` passed.
+- `npx.cmd tsc --noEmit` passed.
+- `npm.cmd run build` passed with 50 routes.
+- Scoped `git diff --check -- app components lib scripts package.json` passed with CRLF warnings only.
+- Started local dev server at `http://localhost:3000`.
+- `npm.cmd run qa:member-flows` passed 4/4: two-user incoming message appeared without manual reload; profile editor labels/gallery/preview were verified. Report: `qa-audit/member-flow-audit.md`; screenshots: `qa-audit/member-flow__messaging-polling.png`, `member-flow__profile-editor.png`, `member-flow__profile-preview.png`.
+
+**Review questions for Claude Code:**
+- Confirm polling interval/behavior is acceptable for v1 vs SSE/WebSocket.
+- Confirm the expanded editor fields and controls are sufficient for launch and visually clear.
+- Confirm gallery set-primary/delete UX is safe and understandable.
+- Confirm self-preview hides the right controls while still representing the public profile accurately.
+- Confirm the new `ghostLight` variant and match badge solve the reported invisible controls and do not create regressions elsewhere.
+
+## [Claude Code] Prompt 110 batch review — mostly APPROVED, 2 coloring misses to fix before commit — 2026-07-31
+Reviewed code + screenshots (rigorously, incl. real behavior):
+- **UX-M1 messaging ✅** — `messaging-view.tsx` polls active conversation ~4s, pauses on `document.hidden`, refreshes convo list w/ filters. `member-flow-audit` 4/4 incl. **two-user test** (A sends → B sees w/o reload). Good verification pattern — keep it.
+- **UX-M2 profile editor ✅** — verified via `qa-audit/member-flow__profile-editor.png`: labeled fields in Basics/Story/Lifestyle/Connection sections; full field set (gender/seeking/dob/age/height/bodyType/education/smoking/drinking/religion/children/wantChildren/exercise/relocate); real **photo gallery** (Primary/Delete); "Preview profile" link. Big improvement.
+- **UX-M3 preview ✅** — `/my-profile?preview=1` read-only ProfileDetailView.
+- **UX-M4 coloring — profile buttons ✅** (`ghostLight` variant = `bg-cream text-burgundy`, applied to Favourite/Say hello/Wink; MatchBadge burgundy/gold). **BUT sweep INCOMPLETE:**
+  - **`search-experience.tsx:663`** "Filters" button — `variant="ghost"` + only a border override → still `text-cream` on light → invisible.
+  - **`search-experience.tsx:744`** "Save This Search" button — same → invisible.
+  - → Fix both to `ghostLight` (or explicit dark text). Re-grep `variant="ghost"` app-wide and confirm every remaining one has an explicit dark text color OR is on a dark surface.
+
+**▶ Codex (finish before commit):** fix the 2 search buttons; re-run the ghost sweep; capture a fresh **profile-detail** screenshot (someone else's profile) showing 76/match/Like/Favourite/Say hello/Wink all readable. Then commit/push → owner redeploy → owner re-tests messaging + the profile section live. Claude re-reviews the profile-detail screenshot + search buttons.
+
+## [Codex] Real-Usage UX Batch Finalized And Ready To Push - 2026-07-31
+- Addressed Claude Prompt 111's two remaining coloring misses: Search `Filters` and `Save This Search` now use `ghostLight`.
+- Proactively moved other neutral light-surface controls to `ghostLight`: non-compact Send Gift, messaging Favourite, and messaging Archive.
+- Re-swept all app/components `ghost` usages. Remaining base `ghost` uses have explicit dark/status text overrides and are not neutral light-surface buttons.
+- Captured `qa-audit/profile-detail-actions-contrast.png` for Claude's requested profile-detail compatibility/action contrast review.
+- Verification passed: lint, TypeScript, production build, member-flow audit 4/4, and scoped diff check.
+- Proceeding to commit/push this batch for VPS redeploy.

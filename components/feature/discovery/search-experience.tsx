@@ -660,7 +660,7 @@ export function SearchExperience({
               <option value="CA">Canada</option>
               <option value="AU">Australia</option>
             </select>
-            <Button type="button" variant="ghost" className="justify-center border-[#EBDCCB]">
+            <Button type="button" variant="ghostLight" className="justify-center border-[#EBDCCB]">
               <SlidersHorizontal size={18} />
               Filters
               <span className="grid h-6 w-6 place-items-center rounded-full bg-danger text-xs font-black text-white">{Number(onlineOnly) + Number(verifiedOnly) + Number(newOnly)}</span>
@@ -741,7 +741,7 @@ export function SearchExperience({
                 <Check size={17} />
                 Update Results
               </Button>
-              <Button type="button" variant="ghost" className="w-full justify-center border-[#E7C9CE]" onClick={() => void saveSearch()}>
+              <Button type="button" variant="ghostLight" className="w-full justify-center border-[#E7C9CE]" onClick={() => void saveSearch()}>
                 <Heart size={17} />
                 Save This Search
               </Button>

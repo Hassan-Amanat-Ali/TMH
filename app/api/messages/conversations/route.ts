@@ -2,10 +2,17 @@ import { NextResponse } from "next/server";
 import { AuthError, requireUser } from "@/lib/server/session";
 import { getOrCreateConversation, listConversations } from "@/lib/server/services/messaging";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    return NextResponse.json({ conversations: await listConversations(user.id) });
+    const params = new URL(request.url).searchParams;
+    return NextResponse.json({
+      conversations: await listConversations(user.id, {
+        favourite: params.get("favourite") === "1",
+        archived: params.get("archived") === "1",
+        label: params.get("label") || undefined,
+      }),
+    });
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json({ error: "Could not list conversations." }, { status: 500 });

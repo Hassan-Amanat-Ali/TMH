@@ -39,7 +39,6 @@ export function ProfileActionButtons({
   }
 
   const compactClass = compact ? "h-11 w-11 px-0" : "";
-  const lightGhost = compact ? "border-burgundy/15 bg-cream text-burgundy" : "";
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -47,16 +46,16 @@ export function ProfileActionButtons({
         <Heart className={isLiked ? "fill-current" : ""} size={18} />
         {!compact && (isLiked ? "Liked" : "Like")}
       </Button>
-      <Button type="button" variant={isFavourite ? "gold" : "ghost"} className={`${compactClass} ${lightGhost}`} aria-label="Save favourite" disabled={pending !== null} onClick={() => send("FAVOURITE")}>
+      <Button type="button" variant={isFavourite ? "gold" : "ghostLight"} className={compactClass} aria-label="Save favourite" disabled={pending !== null} onClick={() => send("FAVOURITE")}>
         <Bookmark className={isFavourite ? "fill-current" : ""} size={18} />
         {!compact && "Favourite"}
       </Button>
-      <Button type="button" variant="ghost" className={`${compactClass} ${lightGhost}`} aria-label="Say hello">
+      <Button type="button" variant="ghostLight" className={compactClass} aria-label="Say hello">
         <MessageCircle size={18} />
         {!compact && "Say hello"}
       </Button>
       {!compact && (
-        <Button type="button" variant="ghost" disabled={pending !== null} onClick={() => send("WINK")}>
+        <Button type="button" variant="ghostLight" disabled={pending !== null} onClick={() => send("WINK")}>
           <Sparkles size={18} />
           Wink
         </Button>

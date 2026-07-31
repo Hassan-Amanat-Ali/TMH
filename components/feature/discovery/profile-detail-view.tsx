@@ -8,10 +8,10 @@ import { ProfileActionButtons } from "./profile-action-buttons";
 import { ProfileVisitTracker } from "./profile-visit-tracker";
 import { SendGiftButton, type GiftOption } from "@/components/feature/economy/send-gift-button";
 
-export function ProfileDetailView({ profile, gifts = [], giftBalance = 0 }: { profile: DiscoveryProfile; gifts?: GiftOption[]; giftBalance?: number }) {
+export function ProfileDetailView({ profile, gifts = [], giftBalance = 0, preview = false }: { profile: DiscoveryProfile; gifts?: GiftOption[]; giftBalance?: number; preview?: boolean }) {
   return (
     <div className="bg-cream-100">
-      <ProfileVisitTracker profileId={profile.userId} />
+      {!preview && <ProfileVisitTracker profileId={profile.userId} />}
       <section className="relative min-h-[72vh] overflow-hidden bg-chrome text-cream">
         <Image src={profile.primaryPhoto} alt={profile.name} fill priority sizes="100vw" className="object-cover opacity-75" />
         <div className="absolute inset-0 bg-gradient-to-t from-chrome-deep via-chrome/50 to-chrome-deep/20" />
@@ -44,9 +44,15 @@ export function ProfileDetailView({ profile, gifts = [], giftBalance = 0 }: { pr
                 </div>
                 <MatchBadge percent={profile.matchPercent} size="lg" />
               </div>
-              <div className="mt-5">
-                <ProfileActionButtons profileId={profile.userId} liked={profile.likedByViewer} favourited={profile.favouritedByViewer} />
-              </div>
+              {preview ? (
+                <p className="mt-5 rounded-3xl bg-cream-100 p-4 text-sm font-semibold leading-6 text-mauve-dark">
+                  Preview mode shows how members see your profile. Interaction buttons are hidden because this is your own profile.
+                </p>
+              ) : (
+                <div className="mt-5">
+                  <ProfileActionButtons profileId={profile.userId} liked={profile.likedByViewer} favourited={profile.favouritedByViewer} />
+                </div>
+              )}
             </Card>
           </div>
         </div>
@@ -109,7 +115,7 @@ export function ProfileDetailView({ profile, gifts = [], giftBalance = 0 }: { pr
         </div>
 
         <aside className="space-y-5">
-          <Card className="bg-chrome p-5 text-cream">
+          {!preview && <Card className="bg-chrome p-5 text-cream">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-gold-light">Start softly</p>
             <h2 className="mt-2 font-serif text-3xl font-bold text-gold-light">Send a thoughtful hello</h2>
             <div className="mt-5 grid gap-3">
@@ -119,17 +125,17 @@ export function ProfileDetailView({ profile, gifts = [], giftBalance = 0 }: { pr
               </Link>
               <SendGiftButton receiverId={profile.userId} receiverName={profile.name} gifts={gifts} initialBalance={giftBalance} compact />
             </div>
-          </Card>
+          </Card>}
           <Card className="bg-white p-5">
             <div className="flex items-center gap-3 text-burgundy">
               <ShieldCheck size={22} />
               <h2 className="font-serif text-2xl font-bold">Safety</h2>
             </div>
             <p className="mt-3 text-sm leading-6 text-mauve-dark">Verified signals, anti-leakage rules, and report tools keep early conversations on-platform.</p>
-            <button className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-danger">
+            {!preview && <button className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-danger">
               <Flag size={16} />
               Report profile
-            </button>
+            </button>}
           </Card>
           <Card className="bg-white p-5">
             <div className="flex items-center gap-3 text-burgundy">
